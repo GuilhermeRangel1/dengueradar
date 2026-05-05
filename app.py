@@ -1,130 +1,143 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from extrator import buscar_dados_dengue_elaborado
+import json
+import unicodedata
 
-st.set_page_config(page_title="DengueRadar | Recife", layout="wide", page_icon="🦟")
 
-st.title("🦟 DengueRadar")
-st.caption("📌 Fonte dos Dados: InfoDengue (Fiocruz) | Município: Recife/PE (IBGE: 2611606)")
+st.set_page_config(page_title="DengueRadar | Recife 2025", layout="wide", page_icon="🦟")
+st.title("🦟 DengueRadar: Monitoramento Recife")
+st.caption("📌 Fonte: Microdados Oficiais (SINAN/Prefeitura do Recife) | Ano: 2025")
 
-@st.cache_data(ttl=3600)
-def carregar_dados():
-    return buscar_dados_dengue_elaborado()
+@st.cache_data
+def carregar_geojson_bairros():
+    try:
+        with open('maparecife.geojson', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        st.error(f"Erro ao ler o arquivo 'maparecife.geojson': {e}")
+        return None
 
-with st.spinner('Sincronizando com a base da Fiocruz...'):
-    df_completo = carregar_dados()
-
-if not df_completo.empty:
-    ano_atual = df_completo['Ano'].max()
-    df_ano_atual = df_completo[df_completo['Ano'] == ano_atual].copy()
-    dados_ultima_semana = df_ano_atual.iloc[-1]
+@st.cache_data
+def carregar_dados_2025():
+    df = pd.read_csv('dados_2025.csv', sep=',', encoding='latin-1', on_bad_lines='skip')
     
-    aba_geral, aba_analitica = st.tabs(["🟢 Visão Geral", "📊 Visão Analítica"])
+    df['DT_NOTIFIC'] = pd.to_datetime(df['DT_NOTIFIC'], errors='coerce')
+    
+    df['Semana_Epi'] = df['SEM_NOT'].astype(str).str[-2:].astype(int)
+    
+    if 'NM_BAIRRO' in df.columns:
+        df['NM_BAIRRO'] = df['NM_BAIRRO'].fillna('NAO INFORMADO').astype(str)
+        
+        def limpar_texto(txt):
+            txt = txt.strip().upper()
+            return unicodedata.normalize('NFKD', txt).encode('ASCII', 'ignore').decode('utf-8')
+        
+        df['NM_BAIRRO'] = df['NM_BAIRRO'].apply(limpar_texto)
+        
+    return df
+
+with st.spinner('Sincronizando microdados e mapas locais...'):
+    geojson_bairros = carregar_geojson_bairros()
+    try:
+        df_completo = carregar_dados_2025()
+        carregado_com_sucesso = True
+    except Exception as e:
+        st.error(f"Erro ao carregar 'dados_2025.csv': {e}")
+        carregado_com_sucesso = False
+
+if carregado_com_sucesso and not df_completo.empty:
+    
+    total_casos = len(df_completo)
+    bairro_critico = df_completo['NM_BAIRRO'].value_counts().index[0]
+    
+    aba_geral, aba_analitica = st.tabs(["🟢 Visão Geral da Cidade", "📍 Mapa e Análise por Bairro"])
     
     with aba_geral:
-        st.subheader(f"Status Atual: Semana {int(dados_ultima_semana['Semana_Epi'])} / {ano_atual}")
+        st.subheader("Cenário Epidemiológico: Recife 2025")
         
-        col1, col2, col3 = st.columns(3)
-        var_pct = dados_ultima_semana['Variacao_Semanal_Pct']
+        col1, col2 = st.columns(2)
+        col1.metric("Total de Notificações", f"{total_casos:,}")
+        col2.metric("Epicentro (Bairro com mais casos)", bairro_critico)
         
-        with col1:
-            st.metric(
-                label="Casos Notificados (Semana)", 
-                value=int(dados_ultima_semana['casos']), 
-                delta=f"{var_pct}% vs Sem. Passada",
-                delta_color="inverse"
-            )
-        with col2:
-            st.metric(
-                label="Tendência (Média Móvel 4S)", 
-                value=int(dados_ultima_semana['Media_Movel_4S'])
-            )
-        with col3:
-            st.metric(
-                label="Nível de Alerta", 
-                value=f"Nível {int(dados_ultima_semana['nivel'])}"
-            )
-            
-        if var_pct > 25.0:
-            st.error(f"🚨 **ALERTA:** Crescimento acelerado de {var_pct}% nos casos. Recomendada atenção nas ações de bloqueio.")
-        elif var_pct > 0:
-            st.warning("⚠️ **ATENÇÃO:** Curva de contágio apresenta tendência de alta.")
-        else:
-            st.success("✅ **ESTÁVEL:** Incidência da doença em estabilidade ou queda.")
-            
-        st.markdown("### Curva de Contágio Recente")
+        st.divider()
         
-        fig_geral = px.area(
-            df_ano_atual, 
-            x='Semana_Epi', 
-            y='casos',
-            labels={'Semana_Epi': 'Semana Epidemiológica', 'casos': 'Número de Casos'},
-            color_discrete_sequence=["#FF4B4B"]
+        st.markdown("### Curva de Contágio Municipal (2025)")
+        casos_por_semana = df_completo.groupby('Semana_Epi').size().reset_index(name='Casos')
+        casos_por_semana = casos_por_semana[casos_por_semana['Semana_Epi'] <= 52] 
+
+        fig_curva = px.area(
+            casos_por_semana, x='Semana_Epi', y='Casos',
+            labels={'Semana_Epi': 'Semana Epidemiológica', 'Casos': 'Notificações'},
+            color_discrete_sequence=["#FF4B4B"], markers=True
         )
-        fig_geral.update_layout(xaxis=dict(range=[1, 52], dtick=2), margin=dict(l=0, r=0, t=10, b=0))
-        st.plotly_chart(fig_geral, use_container_width=True)
+        fig_curva.update_layout(xaxis=dict(dtick=1), margin=dict(t=10))
+        st.plotly_chart(fig_curva, use_container_width=True)
 
     with aba_analitica:
-        st.subheader("Inteligência Epidemiológica e Fatores de Risco")
+        st.subheader("Inteligência Geográfica dos Bairros")
         
-        st.markdown("**1. Curva Sazonal: Comparativo Ano a Ano**")
-        fig_analitica = px.line(
-            df_completo, x='Semana_Epi', y='casos', color='Ano', markers=True,
-            labels={'Semana_Epi': 'Semana Epidemiológica', 'casos': 'Casos Notificados'}
-        )
-        fig_analitica.update_layout(xaxis=dict(range=[1, 52], dtick=2), margin=dict(t=10)) 
-        st.plotly_chart(fig_analitica, use_container_width=True)
+        df_bairros = df_completo['NM_BAIRRO'].value_counts().reset_index()
+        df_bairros.columns = ['Bairro', 'Notificações']
         
-        st.divider()
+        col_mapa, col_rank = st.columns([1.6, 1])
         
-        st.markdown("**2. Análise de Subnotificação: Casos Confirmados vs. Estimados**")
-        st.caption("Devido à latência inerente dos sistemas oficiais (ex: SINAN), a Fiocruz projeta o cenário real estimado para as últimas semanas.")
-        
-        fig_estimativa = px.line(
-            df_ano_atual, x='Semana_Epi', y=['casos_est', 'casos'], markers=True,
-            labels={'value': 'Quantidade de Casos', 'variable': 'Métrica', 'Semana_Epi': 'Semana'},
-            color_discrete_map={'casos_est': '#d62728', 'casos': '#1f77b4'}
-        )
-        newnames = {'casos_est': 'Estimativa (Cenário Real)', 'casos': 'Notificados (Sistema Oficiais)'}
-        fig_estimativa.for_each_trace(lambda t: t.update(name = newnames[t.name]))
-        fig_estimativa.update_layout(xaxis=dict(range=[1, 52], dtick=2), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(t=10))
-        st.plotly_chart(fig_estimativa, use_container_width=True)
-        
-        st.divider()
-        
-        col_risco, col_clima = st.columns(2)
-        
-        with col_risco:
-            st.markdown("**3. Distribuição dos Níveis de Alerta (Ano Atual)**")
-            contagem_niveis = df_ano_atual['nivel'].value_counts().reset_index()
-            contagem_niveis.columns = ['Nível de Alerta', 'Semanas']
-            
-            cores_alerta = {1: '#2ca02c', 2: '#ff7f0e', 3: '#d62728', 4: '#8c564b'}
-            fig_rosca = px.pie(contagem_niveis, values='Semanas', names='Nível de Alerta', hole=0.5, color='Nível de Alerta', color_discrete_map=cores_alerta)
-            fig_rosca.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-            st.plotly_chart(fig_rosca, use_container_width=True)
-            
-        with col_clima:
-            st.markdown("**4. Impacto Climático: Casos vs. Temperatura**")
-            
-            fig_clima = go.Figure()
-            fig_clima.add_trace(go.Bar(x=df_ano_atual['Semana_Epi'], y=df_ano_atual['casos'], name='Casos Notificados', marker_color='#1f77b4'))
-            fig_clima.add_trace(go.Scatter(x=df_ano_atual['Semana_Epi'], y=df_ano_atual['tempmax'], name='Temp. Máxima (°C)', yaxis='y2', line=dict(color='#ff7f0e', width=3)))
-            
-            fig_clima.update_layout(
-                xaxis=dict(range=[1, 52], dtick=4, title='Semana Epidemiológica'),
-                yaxis=dict(title='Casos', side='left'),
-                yaxis2=dict(title='Temperatura (°C)', side='right', overlaying='y', range=[20, 40]), 
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=0, r=0, t=30, b=0)
+        with col_mapa:
+            st.markdown("**Distribuição Espacial (Mapa de Calor)**")
+            if geojson_bairros:
+                fig_mapa = px.choropleth_mapbox(
+                    df_bairros,
+                    geojson=geojson_bairros,
+                    locations='Bairro',
+                    featureidkey='properties.EBAIRRNOME', 
+                    color='Notificações',
+                    color_continuous_scale="Reds",
+                    mapbox_style="carto-positron",
+                    zoom=10.5,
+                    center={"lat": -8.058, "lon": -34.91},
+                    opacity=0.7,
+                    hover_name='Bairro'
+                )
+                fig_mapa.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+                st.plotly_chart(fig_mapa, use_container_width=True)
+            else:
+                st.warning("Arquivo 'maparecife.geojson' não encontrado. O mapa não pode ser exibido.")
+
+        with col_rank:
+            st.markdown("**Top 10 Bairros Críticos**")
+            fig_rank = px.bar(
+                df_bairros.head(10).sort_values('Notificações', ascending=True), 
+                x='Notificações', y='Bairro', orientation='h',
+                color_discrete_sequence=["#ff7f0e"]
             )
-            st.plotly_chart(fig_clima, use_container_width=True)
+            fig_rank.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=400)
+            st.plotly_chart(fig_rank, use_container_width=True)
+            
+        st.divider()
+        col_selecao, col_pie = st.columns([1.5, 1])
         
-        with st.expander("Visualizar e Exportar Base de Dados Bruta"):
-            st.dataframe(df_completo.sort_values(by=['Ano', 'Semana_Epi'], ascending=False), use_container_width=True)
-            csv = df_completo.to_csv(index=False).encode('utf-8')
-            st.download_button(label="📥 Baixar Base Completa (CSV)", data=csv, file_name=f"dengueradar_recife_historico.csv", mime="text/csv")
+        with col_selecao:
+            st.markdown("**Análise Individual por Bairro**")
+            lista_bairros = sorted(df_bairros['Bairro'].unique())
+            escolha = st.selectbox("Selecione um bairro para ver o histórico:", lista_bairros)
+            
+            df_selecionado = df_completo[df_completo['NM_BAIRRO'] == escolha]
+            historico_bairro = df_selecionado.groupby('Semana_Epi').size().reset_index(name='Casos')
+            
+            fig_individual = px.bar(historico_bairro, x='Semana_Epi', y='Casos', color_discrete_sequence=["#1f77b4"])
+            fig_individual.update_layout(xaxis=dict(dtick=1), height=300)
+            st.plotly_chart(fig_individual, use_container_width=True)
+            
+        with col_pie:
+            st.markdown("**Gravidade das Notificações**")
+            if 'CLASSI_FIN' in df_completo.columns:
+                df_completo['CLASSI_FIN'] = df_completo['CLASSI_FIN'].fillna('Em Investigação')
+                resumo_gravidade = df_completo['CLASSI_FIN'].value_counts().reset_index()
+                resumo_gravidade.columns = ['Classificação', 'Total']
+                
+                fig_pie = px.pie(resumo_gravidade, values='Total', names='Classificação', hole=0.4)
+                fig_pie.update_layout(margin=dict(t=0, b=0), height=300)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
 else:
-    st.error("Falha ao comunicar com a API da Fiocruz. Tente novamente mais tarde.")
+    st.info("Certifique-se de que os arquivos 'dados_2025.csv' e 'maparecife.geojson' estão na pasta do projeto.")
