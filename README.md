@@ -16,6 +16,40 @@ Projeto desenvolvido para a disciplina de **Projetos 5**.
 
 ---
 
+## Como rodar o projeto
+
+**1. Crie e ative o ambiente virtual**
+
+```bash
+python -m venv venv
+```
+
+Windows:
+```bash
+venv\Scripts\activate
+```
+
+Linux/Mac:
+```bash
+source venv/bin/activate
+```
+
+**2. Instale as dependências**
+
+```bash
+pip install -r requirements.txt
+```
+
+**3. Execute a aplicação**
+
+```bash
+streamlit run app.py
+```
+
+A aplicação abrirá automaticamente no navegador em `http://localhost:8501`.
+
+---
+
 ## Integrantes
 
 - Arthur Leal
