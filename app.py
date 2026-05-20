@@ -32,6 +32,14 @@ def carregar_geojson_bairros():
         st.error(f"Erro ao ler o arquivo 'maparecife.geojson': {e}")
         return None
 
+_FORMATO_DATA = {
+    2021: '%d/%m/%Y',
+    2022: '%Y-%m-%d',
+    2023: '%Y-%m-%d',
+    2024: '%d/%m/%Y',
+    2025: None,  # ISO com timestamp — pandas infere automaticamente
+}
+
 def _ler_csv_ano(ano):
     if ano == 2025:
         df = pd.read_csv('dados_2025.csv', sep=',', encoding='latin-1', on_bad_lines='skip', low_memory=False)
@@ -39,6 +47,11 @@ def _ler_csv_ano(ano):
         df = pd.read_csv(f'dados_{ano}.csv', sep=';', encoding='latin-1', on_bad_lines='skip', low_memory=False)
     df.columns = [c.upper() for c in df.columns]
     df['ANO'] = ano
+    fmt = _FORMATO_DATA.get(ano)
+    if fmt:
+        df['DT_NOTIFIC'] = pd.to_datetime(df['DT_NOTIFIC'], format=fmt, errors='coerce')
+    else:
+        df['DT_NOTIFIC'] = pd.to_datetime(df['DT_NOTIFIC'], errors='coerce')
     return df
 
 @st.cache_data
@@ -50,7 +63,6 @@ def carregar_todos_dados():
         except Exception as e:
             st.warning(f"Não foi possível carregar dados de {ano}: {e}")
     df = pd.concat(frames, ignore_index=True)
-    df['DT_NOTIFIC'] = pd.to_datetime(df['DT_NOTIFIC'], errors='coerce')
     df['Semana_Epi'] = (pd.to_numeric(df['SEM_NOT'], errors='coerce').round(0) % 100).astype('Int64')
     if 'NM_BAIRRO' in df.columns:
         df['NM_BAIRRO'] = df['NM_BAIRRO'].fillna('NAO INFORMADO').astype(str)
@@ -160,28 +172,64 @@ if carregado_com_sucesso and not df_completo.empty:
 
         st.divider()
 
-        st.markdown("### Histórico de Casos por Semana Epidemiológica (2021–2025)")
+        col_titulo_hist, col_filtro_hist = st.columns([3, 1])
+        with col_titulo_hist:
+            st.markdown("### Histórico de Casos (2021–2025)")
+        with col_filtro_hist:
+            modo_hist = st.radio(
+                "Visualizar por:",
+                ["Semana Epidemiológica", "Mês"],
+                horizontal=True,
+                key="radio_hist",
+            )
 
-        semana_valida = df_todos['Semana_Epi'].notna() & (df_todos['Semana_Epi'] >= 1) & (df_todos['Semana_Epi'] <= 52)
-        casos_historico = (
-            df_todos[semana_valida]
-            .groupby(['ANO', 'Semana_Epi'])
-            .size()
-            .reset_index(name='Casos')
-        )
-        casos_historico['Semana_Epi'] = casos_historico['Semana_Epi'].astype(int)
-        casos_historico['ANO'] = casos_historico['ANO'].astype(str)
+        if modo_hist == "Semana Epidemiológica":
+            semana_valida = df_todos['Semana_Epi'].notna() & (df_todos['Semana_Epi'] >= 1) & (df_todos['Semana_Epi'] <= 52)
+            casos_historico = (
+                df_todos[semana_valida]
+                .groupby(['ANO', 'Semana_Epi'])
+                .size()
+                .reset_index(name='Casos')
+            )
+            casos_historico['Semana_Epi'] = casos_historico['Semana_Epi'].astype(int)
+            casos_historico['ANO'] = casos_historico['ANO'].astype(str)
 
-        fig_area = px.area(
-            casos_historico,
-            x='Semana_Epi', y='Casos', color='ANO',
-            labels={'Semana_Epi': 'Semana Epidemiológica', 'Casos': 'Notificações', 'ANO': 'Ano'},
-            color_discrete_sequence=px.colors.qualitative.Set2,
-        )
-        fig_area.update_layout(
-            xaxis=dict(dtick=1), margin=dict(t=10),
-            legend=dict(title='Ano', orientation='h', y=1.05),
-        )
+            fig_area = px.area(
+                casos_historico,
+                x='Semana_Epi', y='Casos', color='ANO',
+                labels={'Semana_Epi': 'Semana Epidemiológica', 'Casos': 'Notificações', 'ANO': 'Ano'},
+                color_discrete_sequence=px.colors.qualitative.Set2,
+            )
+            fig_area.update_layout(
+                xaxis=dict(dtick=1), margin=dict(t=10),
+                legend=dict(title='Ano', orientation='h', y=1.05),
+            )
+        else:
+            _MESES = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun',
+                      7: 'Jul', 8: 'Ago', 9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'}
+            df_com_data = df_todos[df_todos['DT_NOTIFIC'].notna()].copy()
+            df_com_data['Mes'] = df_com_data['DT_NOTIFIC'].dt.month
+            casos_historico = (
+                df_com_data.groupby(['ANO', 'Mes'])
+                .size()
+                .reset_index(name='Casos')
+            )
+            casos_historico['Mês'] = casos_historico['Mes'].map(_MESES)
+            casos_historico['ANO'] = casos_historico['ANO'].astype(str)
+            casos_historico = casos_historico.sort_values(['ANO', 'Mes'])
+
+            fig_area = px.area(
+                casos_historico,
+                x='Mês', y='Casos', color='ANO',
+                category_orders={'Mês': list(_MESES.values())},
+                labels={'Mês': 'Mês', 'Casos': 'Notificações', 'ANO': 'Ano'},
+                color_discrete_sequence=px.colors.qualitative.Set2,
+            )
+            fig_area.update_layout(
+                margin=dict(t=10),
+                legend=dict(title='Ano', orientation='h', y=1.05),
+            )
+
         st.plotly_chart(fig_area, use_container_width=True)
 
     with aba_analitica:
@@ -255,8 +303,10 @@ if carregado_com_sucesso and not df_completo.empty:
             fig_individual = px.bar(
                 historico_bairro, x='ANO', y='Casos',
                 color_discrete_sequence=["#1f77b4"],
+                text='Casos',
             )
-            fig_individual.update_layout(height=300)
+            fig_individual.update_traces(textposition='outside', textfont_size=12)
+            fig_individual.update_layout(height=320, yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2]))
             st.plotly_chart(fig_individual, use_container_width=True)
 
         with col_gravidade:
@@ -266,35 +316,39 @@ if carregado_com_sucesso and not df_completo.empty:
                 index=5,
                 key="sel_gravidade",
             )
-            st.markdown(f"**Gravidade das Notificações — {ano_grav}**")
+            st.markdown(f"**Classificação das Notificações — {ano_grav}**")
             df_grav_base = df_todos if ano_grav == "Todos os Anos" else df_todos[df_todos['ANO'] == ano_grav]
             if 'CLASSI_FIN' in df_grav_base.columns:
                 classi = pd.to_numeric(df_grav_base['CLASSI_FIN'], errors='coerce')
                 labels = classi.map(_MAPA_CLASSI).fillna('Em Investigação')
-                resumo_gravidade = labels.value_counts().reset_index()
+                contagem = labels.value_counts()
+
+                resumo_gravidade = contagem.reset_index()
                 resumo_gravidade.columns = ['Classificação', 'Total']
-                resumo_gravidade = resumo_gravidade.sort_values('Total', ascending=False)
+                resumo_gravidade = resumo_gravidade.sort_values('Total', ascending=True)
 
                 fig_gravidade = px.bar(
                     resumo_gravidade,
                     x='Total', y='Classificação', orientation='h',
                     color='Classificação',
                     color_discrete_map={
-                        'Dengue Grave':    '#d62728',
+                        'Dengue Grave':     '#d62728',
                         'Dengue c/ Alarme': '#ff7f0e',
-                        'Dengue':          '#e15759',
-                        'Chikungunya':     '#9467bd',
-                        'Inconclusivo':    '#8c564b',
-                        'Descartado':      '#7f7f7f',
-                        'Em Investigação': '#bcbd22',
+                        'Dengue':           '#e15759',
+                        'Chikungunya':      '#9467bd',
+                        'Inconclusivo':     '#8c564b',
+                        'Descartado':       '#7f7f7f',
+                        'Em Investigação':  '#bcbd22',
                     },
+                    text='Total',
                     labels={'Total': 'Notificações', 'Classificação': ''},
                 )
+                fig_gravidade.update_traces(textposition='outside', textfont_size=11)
                 fig_gravidade.update_layout(
-                    margin=dict(t=10, b=0, l=0, r=10),
-                    height=300,
-                    yaxis=dict(autorange='reversed'),
+                    margin=dict(t=10, b=0, l=0, r=40),
+                    height=320,
                     showlegend=False,
+                    xaxis=dict(range=[0, resumo_gravidade['Total'].max() * 1.2]),
                 )
                 st.plotly_chart(fig_gravidade, use_container_width=True)
 
