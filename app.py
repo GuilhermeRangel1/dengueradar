@@ -2,8 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import json
 import unicodedata
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 st.set_page_config(page_title="DengueRadar | Recife", layout="wide", page_icon="🦟")
 st.title("🦟 DengueRadar: Monitoramento Recife")
@@ -142,6 +145,62 @@ def calcular_score_risco(df_todos):
 
     return score_df
 
+@st.cache_data
+def preparar_serie_mensal(df_todos, bairro="Recife — Total"):
+    df = df_todos[df_todos['DT_NOTIFIC'].notna()].copy()
+    if bairro != "Recife — Total":
+        df = df[df['NM_BAIRRO'] == bairro]
+    df['Ano_Mes'] = df['DT_NOTIFIC'].dt.to_period('M').dt.to_timestamp()
+    serie = df.groupby('Ano_Mes').size().reset_index(name='Casos')
+    serie = serie.sort_values('Ano_Mes').reset_index(drop=True)
+    serie['t'] = np.arange(len(serie))
+    serie['mes'] = serie['Ano_Mes'].dt.month
+    serie['sin_t'] = np.sin(2 * np.pi * serie['mes'] / 12)
+    serie['cos_t'] = np.cos(2 * np.pi * serie['mes'] / 12)
+    return serie
+
+def _treinar_modelo_producao(serie):
+    X = serie[['t', 'sin_t', 'cos_t']].values
+    y = serie['Casos'].values
+    model = LinearRegression().fit(X, y)
+    resid_std = float(np.std(y - model.predict(X)))
+    return model, resid_std
+
+def _backtest_2024(serie):
+    treino = serie[serie['Ano_Mes'].dt.year <= 2023]
+    teste  = serie[serie['Ano_Mes'].dt.year == 2024]
+    if len(treino) < 10 or len(teste) < 3:
+        return None, None, None
+    X_tr = treino[['t', 'sin_t', 'cos_t']].values
+    y_tr = treino['Casos'].values
+    X_te = teste[['t', 'sin_t', 'cos_t']].values
+    y_te = teste['Casos'].values
+    m = LinearRegression().fit(X_tr, y_tr)
+    y_pred = np.maximum(m.predict(X_te), 0)
+    residuos_tr = float(np.std(y_tr - m.predict(X_tr)))
+    return (
+        float(r2_score(y_te, y_pred)),
+        float(mean_absolute_error(y_te, y_pred)),
+        float(np.sqrt(mean_squared_error(y_te, y_pred))),
+        m, residuos_tr,
+        treino, teste, y_pred,
+    )
+
+def _gerar_previsao_6m(serie, model, resid_std):
+    t_last    = int(serie['t'].max())
+    last_date = serie['Ano_Mes'].max()
+    datas = pd.date_range(start=last_date + pd.DateOffset(months=1), periods=6, freq='MS')
+    t_fut = np.arange(t_last + 1, t_last + 7)
+    mes   = datas.month
+    X_fut = np.column_stack([t_fut, np.sin(2 * np.pi * mes / 12), np.cos(2 * np.pi * mes / 12)])
+    y_fut = np.maximum(model.predict(X_fut), 0)
+    return pd.DataFrame({
+        'Ano_Mes':  datas,
+        'Previsao': y_fut,
+        'IC_inf':   np.maximum(y_fut - 1.96 * resid_std, 0),
+        'IC_sup':   y_fut + 1.96 * resid_std,
+    })
+
 with st.spinner('Sincronizando microdados e mapas locais...'):
     geojson_bairros = carregar_geojson_bairros()
     try:
@@ -158,10 +217,11 @@ if carregado_com_sucesso and not df_completo.empty:
     total_casos = len(df_completo)
     bairro_critico = df_completo['NM_BAIRRO'].value_counts().index[0]
 
-    aba_geral, aba_analitica, aba_tecnica = st.tabs([
-        "🟢 Visão Geral da Cidade", 
-        "📍 Mapa e Análise por Bairro", 
-        "🔍 Estudo Técnico & Insights"
+    aba_geral, aba_analitica, aba_tecnica, aba_previsao = st.tabs([
+        "🟢 Visão Geral da Cidade",
+        "📍 Mapa e Análise por Bairro",
+        "🔍 Estudo Técnico & Insights",
+        "🔮 Previsão",
     ])
 
     with aba_geral:
@@ -289,69 +349,23 @@ if carregado_com_sucesso and not df_completo.empty:
             st.plotly_chart(fig_rank, use_container_width=True)
 
         st.divider()
-        col_selecao, col_gravidade = st.columns([1.5, 1])
+        st.markdown("**Análise Individual por Bairro**")
+        todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
+        escolha = st.selectbox("Selecione um bairro para ver o histórico:", todos_bairros)
 
-        with col_selecao:
-            st.markdown("**Análise Individual por Bairro**")
-            todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
-            escolha = st.selectbox("Selecione um bairro para ver o histórico:", todos_bairros)
-
-            historico_bairro = (
-                df_todos[df_todos['NM_BAIRRO'] == escolha]
-                .groupby('ANO').size().reset_index(name='Casos')
-            )
-            historico_bairro['ANO'] = historico_bairro['ANO'].astype(str)
-            fig_individual = px.bar(
-                historico_bairro, x='ANO', y='Casos',
-                color_discrete_sequence=["#1f77b4"],
-                text='Casos',
-            )
-            fig_individual.update_traces(textposition='outside', textfont_size=12)
-            fig_individual.update_layout(height=320, yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2]))
-            st.plotly_chart(fig_individual, use_container_width=True)
-
-        with col_gravidade:
-            ano_grav = st.selectbox(
-                "Ano (gravidade):",
-                ["Todos os Anos", 2021, 2022, 2023, 2024, 2025],
-                index=5,
-                key="sel_gravidade",
-            )
-            st.markdown(f"**Classificação das Notificações — {ano_grav}**")
-            df_grav_base = df_todos if ano_grav == "Todos os Anos" else df_todos[df_todos['ANO'] == ano_grav]
-            if 'CLASSI_FIN' in df_grav_base.columns:
-                classi = pd.to_numeric(df_grav_base['CLASSI_FIN'], errors='coerce')
-                labels = classi.map(_MAPA_CLASSI).fillna('Em Investigação')
-                contagem = labels.value_counts()
-
-                resumo_gravidade = contagem.reset_index()
-                resumo_gravidade.columns = ['Classificação', 'Total']
-                resumo_gravidade = resumo_gravidade.sort_values('Total', ascending=True)
-
-                fig_gravidade = px.bar(
-                    resumo_gravidade,
-                    x='Total', y='Classificação', orientation='h',
-                    color='Classificação',
-                    color_discrete_map={
-                        'Dengue Grave':     '#d62728',
-                        'Dengue c/ Alarme': '#ff7f0e',
-                        'Dengue':           '#e15759',
-                        'Chikungunya':      '#9467bd',
-                        'Inconclusivo':     '#8c564b',
-                        'Descartado':       '#7f7f7f',
-                        'Em Investigação':  '#bcbd22',
-                    },
-                    text='Total',
-                    labels={'Total': 'Notificações', 'Classificação': ''},
-                )
-                fig_gravidade.update_traces(textposition='outside', textfont_size=11)
-                fig_gravidade.update_layout(
-                    margin=dict(t=10, b=0, l=0, r=40),
-                    height=320,
-                    showlegend=False,
-                    xaxis=dict(range=[0, resumo_gravidade['Total'].max() * 1.2]),
-                )
-                st.plotly_chart(fig_gravidade, use_container_width=True)
+        historico_bairro = (
+            df_todos[df_todos['NM_BAIRRO'] == escolha]
+            .groupby('ANO').size().reset_index(name='Casos')
+        )
+        historico_bairro['ANO'] = historico_bairro['ANO'].astype(str)
+        fig_individual = px.bar(
+            historico_bairro, x='ANO', y='Casos',
+            color_discrete_sequence=["#1f77b4"],
+            text='Casos',
+        )
+        fig_individual.update_traces(textposition='outside', textfont_size=12)
+        fig_individual.update_layout(height=320, yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2]))
+        st.plotly_chart(fig_individual, use_container_width=True)
 
     with aba_tecnica:
         st.subheader("Estudo Técnico e Monitoramento Ativo")
@@ -405,6 +419,137 @@ if carregado_com_sucesso and not df_completo.empty:
         col_st2.error(f"**👷 Impacto Operacional:**\nPara conter o avanço neste epicentro, estima-se o deslocamento estratégico de **~{agentes_necessarios} agentes de endemias** para bloqueio de focos e eliminação de criadouros.")
         
         col_st3.info(f"**🦟 Gatilho Ambiental (Protocolo):**\nSolicitar à vigilância sanitária a vistoria de fatores exógenos em **{bairro_critico}**. Priorizar rotas com histórico de **canais a céu aberto, acúmulo de lixo irregular e intermitência hídrica**.")
+
+    with aba_previsao:
+        st.subheader("Previsão de Casos — Regressão Linear com Sazonalidade")
+        st.caption(
+            "Modelo: tendência linear + componente harmônico mensal (sin/cos). "
+            "Treinado em 2021–2025 (completo). Métrica de qualidade: backtest treino 2021–2023 → teste 2024."
+        )
+
+        col_ctrl, _ = st.columns([1, 2])
+        with col_ctrl:
+            opcoes_escopo = ["Recife — Total"] + sorted(df_todos['NM_BAIRRO'].dropna().unique().tolist())
+            escopo_prev = st.selectbox("Escopo geográfico:", opcoes_escopo, key="sel_prev_escopo")
+
+        serie = preparar_serie_mensal(df_todos, escopo_prev)
+
+        if len(serie) < 12:
+            st.warning("Dados mensais insuficientes para modelagem neste bairro (mínimo: 12 meses).")
+        else:
+            model_prod, resid_std = _treinar_modelo_producao(serie)
+            resultado_bt = _backtest_2024(serie)
+            df_prev = _gerar_previsao_6m(serie, model_prod, resid_std)
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Meses de histórico", f"{len(serie)}")
+            if resultado_bt[0] is not None:
+                r2_bt, mae_bt, rmse_bt = resultado_bt[0], resultado_bt[1], resultado_bt[2]
+                c2.metric("R² — Backtest 2024", f"{max(r2_bt, 0.0):.3f}")
+                c3.metric("MAE — Backtest 2024", f"{mae_bt:.0f} casos/mês")
+                c4.metric("RMSE — Backtest 2024", f"{rmse_bt:.0f} casos/mês")
+            else:
+                c2.metric("R²", "N/D")
+                c3.metric("MAE", "N/D")
+                c4.metric("RMSE", "N/D")
+
+            st.divider()
+
+            fig_prev = go.Figure()
+
+            fig_prev.add_trace(go.Scatter(
+                x=serie['Ano_Mes'], y=serie['Casos'],
+                name='Histórico Real',
+                line=dict(color='#1f77b4', width=2),
+                mode='lines',
+            ))
+
+            x_band = list(df_prev['Ano_Mes']) + list(df_prev['Ano_Mes'])[::-1]
+            y_band = list(df_prev['IC_sup']) + list(df_prev['IC_inf'])[::-1]
+            fig_prev.add_trace(go.Scatter(
+                x=x_band, y=y_band,
+                fill='toself',
+                fillcolor='rgba(255,127,14,0.15)',
+                line=dict(color='rgba(0,0,0,0)'),
+                name='IC 95%',
+            ))
+
+            fig_prev.add_trace(go.Scatter(
+                x=df_prev['Ano_Mes'], y=df_prev['Previsao'],
+                name='Previsão (próximos 6 meses)',
+                line=dict(color='#ff7f0e', width=2, dash='dash'),
+                mode='lines+markers',
+                marker=dict(size=7),
+            ))
+
+            fig_prev.update_layout(
+                xaxis_title='Mês',
+                yaxis_title='Notificações Mensais',
+                yaxis=dict(rangemode='tozero'),
+                legend=dict(orientation='h', y=1.08, x=0),
+                margin=dict(t=10, b=0),
+                height=420,
+            )
+            st.plotly_chart(fig_prev, use_container_width=True)
+
+            with st.expander("📊 Ver backtest: modelo vs. real em 2024"):
+                if resultado_bt[0] is not None:
+                    _, _, _, m_bt, res_bt, treino_bt, teste_bt, y_pred_bt = resultado_bt
+                    fig_bt = go.Figure()
+                    fig_bt.add_trace(go.Scatter(
+                        x=treino_bt['Ano_Mes'], y=treino_bt['Casos'],
+                        name='Treino (2021–2023)', line=dict(color='#1f77b4', width=2),
+                    ))
+                    fig_bt.add_trace(go.Scatter(
+                        x=teste_bt['Ano_Mes'], y=teste_bt['Casos'],
+                        name='Real 2024', line=dict(color='#2ca02c', width=2),
+                    ))
+                    x_band_bt = list(teste_bt['Ano_Mes']) + list(teste_bt['Ano_Mes'])[::-1]
+                    y_band_bt = (
+                        list(y_pred_bt + 1.96 * res_bt)
+                        + list(np.maximum(y_pred_bt - 1.96 * res_bt, 0))[::-1]
+                    )
+                    fig_bt.add_trace(go.Scatter(
+                        x=x_band_bt, y=y_band_bt,
+                        fill='toself', fillcolor='rgba(255,127,14,0.15)',
+                        line=dict(color='rgba(0,0,0,0)'), name='IC 95%',
+                    ))
+                    fig_bt.add_trace(go.Scatter(
+                        x=teste_bt['Ano_Mes'], y=y_pred_bt,
+                        name='Previsto 2024',
+                        line=dict(color='#ff7f0e', width=2, dash='dash'),
+                        mode='lines+markers', marker=dict(size=7),
+                    ))
+                    fig_bt.update_layout(
+                        xaxis_title='Mês', yaxis_title='Casos',
+                        yaxis=dict(rangemode='tozero'),
+                        legend=dict(orientation='h', y=1.12),
+                        margin=dict(t=10), height=300,
+                    )
+                    st.plotly_chart(fig_bt, use_container_width=True)
+                else:
+                    st.info("Dados insuficientes para exibir backtest deste bairro.")
+
+            st.divider()
+            _MESES_PT = {
+                1: 'janeiro', 2: 'fevereiro', 3: 'março', 4: 'abril',
+                5: 'maio', 6: 'junho', 7: 'julho', 8: 'agosto',
+                9: 'setembro', 10: 'outubro', 11: 'novembro', 12: 'dezembro',
+            }
+            coef_trend = model_prod.coef_[0]
+            idx_pico   = df_prev['Previsao'].idxmax()
+            pico_mes   = df_prev.loc[idx_pico, 'Ano_Mes']
+            pico_val   = int(round(df_prev.loc[idx_pico, 'Previsao']))
+            dir_trend  = "crescimento" if coef_trend > 0 else "queda"
+            escopo_label = "Recife" if escopo_prev == "Recife — Total" else escopo_prev.title()
+
+            st.info(
+                f"**Interpretação do modelo — {escopo_label}:** "
+                f"A série histórica apresenta tendência de **{dir_trend}** de "
+                f"**{abs(coef_trend):.1f} casos/mês**. "
+                f"Nos próximos 6 meses, o pico projetado é de "
+                f"**{pico_val} notificações** em **{_MESES_PT[pico_mes.month]}/{pico_mes.year}**."
+            )
 
 else:
     st.info("Certifique-se de que a pasta 'dados/' contém os arquivos CSV e o GeoJSON.")
