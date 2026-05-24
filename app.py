@@ -5,6 +5,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import json
 import unicodedata
+import os
+import requests
+from datetime import datetime
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
@@ -186,6 +189,49 @@ def _backtest_2024(serie):
         treino, teste, y_pred,
     )
 
+@st.cache_data(ttl=86400 * 7)
+def buscar_dados_climaticos():
+    cache_path = 'dados/clima_recife.csv'
+
+    if os.path.exists(cache_path):
+        idade_dias = (datetime.now().timestamp() - os.path.getmtime(cache_path)) / 86400
+        if idade_dias < 7:
+            return pd.read_csv(cache_path, parse_dates=['date'])
+
+    url = (
+        "https://archive-api.open-meteo.com/v1/archive"
+        "?latitude=-8.0476&longitude=-34.8770"
+        "&start_date=2021-01-01"
+        f"&end_date={datetime.now().strftime('%Y-%m-%d')}"
+        "&daily=precipitation_sum,temperature_2m_mean,relative_humidity_2m_mean"
+        "&timezone=America%2FRecife"
+    )
+    try:
+        resp = requests.get(url, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+        df = pd.DataFrame({
+            'date': pd.to_datetime(data['daily']['time']),
+            'precipitacao_mm': data['daily']['precipitation_sum'],
+            'temp_media_c': data['daily']['temperature_2m_mean'],
+            'umidade_pct': data['daily']['relative_humidity_2m_mean'],
+        })
+        df.to_csv(cache_path, index=False)
+        return df
+    except Exception:
+        if os.path.exists(cache_path):
+            return pd.read_csv(cache_path, parse_dates=['date'])
+        return None
+
+def preparar_clima_mensal(df_clima):
+    df = df_clima.copy()
+    df['Ano_Mes'] = df['date'].dt.to_period('M').dt.to_timestamp()
+    return df.groupby('Ano_Mes').agg(
+        precipitacao_mm=('precipitacao_mm', 'sum'),
+        temp_media_c=('temp_media_c', 'mean'),
+        umidade_pct=('umidade_pct', 'mean'),
+    ).reset_index()
+
 def _gerar_previsao_6m(serie, model, resid_std):
     t_last    = int(serie['t'].max())
     last_date = serie['Ano_Mes'].max()
@@ -217,11 +263,12 @@ if carregado_com_sucesso and not df_completo.empty:
     total_casos = len(df_completo)
     bairro_critico = df_completo['NM_BAIRRO'].value_counts().index[0]
 
-    aba_geral, aba_analitica, aba_tecnica, aba_previsao = st.tabs([
+    aba_geral, aba_analitica, aba_tecnica, aba_previsao, aba_clima = st.tabs([
         "🟢 Visão Geral da Cidade",
         "📍 Mapa e Análise por Bairro",
         "🔍 Estudo Técnico & Insights",
         "🔮 Previsão",
+        "🌧️ Clima e Correlação",
     ])
 
     with aba_geral:
@@ -550,6 +597,155 @@ if carregado_com_sucesso and not df_completo.empty:
                 f"Nos próximos 6 meses, o pico projetado é de "
                 f"**{pico_val} notificações** em **{_MESES_PT[pico_mes.month]}/{pico_mes.year}**."
             )
+
+    with aba_clima:
+        st.subheader("Correlação Climática com Casos de Dengue")
+        st.caption(
+            "Dados meteorológicos de Recife via Open-Meteo (ERA5 reanalysis). "
+            "A defasagem representa o tempo de incubação/desenvolvimento do Aedes aegypti após evento climático."
+        )
+
+        with st.spinner("Carregando dados climáticos..."):
+            df_clima = buscar_dados_climaticos()
+
+        if df_clima is None:
+            st.warning(
+                "Não foi possível carregar dados climáticos. "
+                "Verifique a conexão com a internet e tente novamente."
+            )
+        else:
+            df_clima_mensal = preparar_clima_mensal(df_clima)
+            serie_dengue = preparar_serie_mensal(df_todos, "Recife — Total")
+
+            df_merged_base = pd.merge(
+                serie_dengue[['Ano_Mes', 'Casos']],
+                df_clima_mensal,
+                on='Ano_Mes', how='inner',
+            )
+
+            clima_2025 = df_clima_mensal[df_clima_mensal['Ano_Mes'].dt.year == 2025]
+            if not clima_2025.empty:
+                col_m1, col_m2, col_m3 = st.columns(3)
+                col_m1.metric("Precipitação Acumulada 2025", f"{clima_2025['precipitacao_mm'].sum():.0f} mm")
+                col_m2.metric("Temperatura Média 2025", f"{clima_2025['temp_media_c'].mean():.1f} °C")
+                col_m3.metric("Umidade Média 2025", f"{clima_2025['umidade_pct'].mean():.0f}%")
+
+            st.divider()
+
+            col_lag, _ = st.columns([1, 3])
+            with col_lag:
+                lag_meses = st.slider(
+                    "Defasagem temporal (meses):",
+                    min_value=0, max_value=4, value=1,
+                    help=(
+                        "Desloca os dados climáticos N meses à frente para capturar o ciclo biológico "
+                        "do mosquito (~2–4 semanas do ovo à fase adulta após evento de chuva/calor)."
+                    ),
+                )
+
+            if lag_meses > 0:
+                df_clima_lag = df_clima_mensal.copy()
+                df_clima_lag['Ano_Mes'] = df_clima_lag['Ano_Mes'] + pd.DateOffset(months=lag_meses)
+                df_plot = pd.merge(
+                    serie_dengue[['Ano_Mes', 'Casos']],
+                    df_clima_lag,
+                    on='Ano_Mes', how='inner',
+                )
+            else:
+                df_plot = df_merged_base.copy()
+
+            if len(df_plot) >= 6:
+                corr_precip = float(df_plot['Casos'].corr(df_plot['precipitacao_mm']))
+                corr_temp   = float(df_plot['Casos'].corr(df_plot['temp_media_c']))
+                corr_umid   = float(df_plot['Casos'].corr(df_plot['umidade_pct']))
+
+                cc1, cc2, cc3 = st.columns(3)
+                cc1.metric("Correlação Precipitação × Casos", f"{corr_precip:+.3f}")
+                cc2.metric("Correlação Temperatura × Casos",  f"{corr_temp:+.3f}")
+                cc3.metric("Correlação Umidade × Casos",      f"{corr_umid:+.3f}")
+            else:
+                corr_precip = corr_temp = corr_umid = None
+
+            st.divider()
+
+            lag_label = f"{lag_meses} {'mês' if lag_meses == 1 else 'meses'}" if lag_meses > 0 else "sem defasagem"
+            st.markdown(f"**Casos Mensais vs. Precipitação Acumulada (defasagem: {lag_label})**")
+
+            fig_dual = go.Figure()
+            fig_dual.add_trace(go.Bar(
+                x=df_plot['Ano_Mes'],
+                y=df_plot['Casos'],
+                name='Casos Dengue',
+                marker_color='#d62728',
+                opacity=0.75,
+                yaxis='y1',
+            ))
+            fig_dual.add_trace(go.Scatter(
+                x=df_plot['Ano_Mes'],
+                y=df_plot['precipitacao_mm'],
+                name=f'Precipitação acumulada (lag {lag_meses}m)',
+                line=dict(color='#1f77b4', width=2),
+                mode='lines+markers',
+                marker=dict(size=5),
+                yaxis='y2',
+            ))
+            fig_dual.update_layout(
+                yaxis=dict(title=dict(text='Notificações Mensais', font=dict(color='#d62728')), tickfont=dict(color='#d62728')),
+                yaxis2=dict(title=dict(text='Precipitação (mm)', font=dict(color='#1f77b4')), tickfont=dict(color='#1f77b4'),
+                            overlaying='y', side='right'),
+                legend=dict(orientation='h', y=1.08, x=0),
+                margin=dict(t=10, b=0),
+                height=400,
+            )
+            st.plotly_chart(fig_dual, use_container_width=True)
+
+            st.divider()
+
+            st.markdown("**Temperatura Média e Umidade Relativa do Ar — Recife (2021–2025)**")
+            fig_temp = go.Figure()
+            fig_temp.add_trace(go.Scatter(
+                x=df_clima_mensal['Ano_Mes'],
+                y=df_clima_mensal['temp_media_c'],
+                name='Temperatura Média (°C)',
+                line=dict(color='#ff7f0e', width=2),
+                mode='lines',
+            ))
+            fig_temp.add_trace(go.Scatter(
+                x=df_clima_mensal['Ano_Mes'],
+                y=df_clima_mensal['umidade_pct'],
+                name='Umidade Relativa (%)',
+                line=dict(color='#17becf', width=2),
+                mode='lines',
+                yaxis='y2',
+            ))
+            fig_temp.update_layout(
+                yaxis=dict(title=dict(text='Temperatura (°C)', font=dict(color='#ff7f0e')), tickfont=dict(color='#ff7f0e')),
+                yaxis2=dict(title=dict(text='Umidade (%)', font=dict(color='#17becf')), tickfont=dict(color='#17becf'),
+                            overlaying='y', side='right'),
+                legend=dict(orientation='h', y=1.08, x=0),
+                margin=dict(t=10, b=0),
+                height=350,
+            )
+            st.plotly_chart(fig_temp, use_container_width=True)
+
+            if corr_precip is not None:
+                variaveis = [
+                    ('precipitação', corr_precip),
+                    ('temperatura', corr_temp),
+                    ('umidade', corr_umid),
+                ]
+                nome_var, val_corr = max(variaveis, key=lambda x: abs(x[1]))
+                forca   = "forte" if abs(val_corr) > 0.6 else "moderada" if abs(val_corr) > 0.3 else "fraca"
+                direcao = "positiva" if val_corr > 0 else "negativa"
+                precede = "precedem" if lag_meses > 0 else "acompanham"
+
+                st.info(
+                    f"**Análise de Correlação ({lag_label}):** "
+                    f"A variável climática com maior influência sobre os casos é a **{nome_var}** "
+                    f"(r = {val_corr:+.3f}), indicando correlação **{forca} e {direcao}**. "
+                    f"Variações na {nome_var} tendem a {precede} mudanças no número de "
+                    f"notificações de dengue em Recife."
+                )
 
 else:
     st.info("Certifique-se de que a pasta 'dados/' contém os arquivos CSV e o GeoJSON.")
