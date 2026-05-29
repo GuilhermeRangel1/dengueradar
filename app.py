@@ -42,7 +42,7 @@ _FORMATO_DATA = {
     2022: '%Y-%m-%d',
     2023: '%Y-%m-%d',
     2024: '%d/%m/%Y',
-    2025: None,  # ISO com timestamp — pandas infere automaticamente
+    2025: None,  
 }
 
 def _ler_csv_ano(ano):
@@ -86,7 +86,7 @@ def carregar_todos_dados():
     return df
 
 @st.cache_data
-def calcular_score_risco(df_todos):
+def calcular_score_risco_dinamico(df_todos, ano_alvo):
     anos = [2021, 2022, 2023, 2024, 2025]
     anos_arr = np.array(anos, dtype=float)
     anos_c = anos_arr - anos_arr.mean() 
@@ -98,27 +98,53 @@ def calcular_score_risco(df_todos):
         .reindex(columns=anos, fill_value=0)
     )
 
-    carga = pivot[2025].astype(float)
-    hist = pivot[[2021, 2022, 2023, 2024]].astype(float)
-    hist_mean = hist.mean(axis=1)
-    hist_std  = hist.std(axis=1)
-    hist_std = hist_std.where(hist_std > 0, 1.0)
-    anomalia = ((pivot[2025] - hist_mean) / hist_std).clip(-3, 5)
-
-    def slope_linear(row):
-        y = row.values.astype(float)
-        if y.sum() == 0:
-            return 0.0
-        coef = np.polyfit(anos_c, y, 1)
-        return float(coef[0]) 
-
-    tendencia = pivot[anos].apply(slope_linear, axis=1)
-
-    df_2025 = df_todos[df_todos['ANO'] == 2025].copy()
-    df_2025['grave'] = pd.to_numeric(df_2025['CLASSI_FIN'], errors='coerce').isin([11, 12])
-    sev = df_2025.groupby('NM_BAIRRO').agg(total=('grave', 'count'), graves=('grave', 'sum'))
-    sev['pct_grave'] = sev['graves'] / sev['total']
-    severidade = sev['pct_grave'].reindex(pivot.index).fillna(0)
+    if ano_alvo == "Todos os Anos":
+        carga = pivot.sum(axis=1)
+        anomalia = pd.Series(0.0, index=pivot.index)
+        
+        def slope_linear_total(row):
+            y = row.values.astype(float)
+            if y.sum() == 0: return 0.0
+            coef = np.polyfit(anos_c, y, 1)
+            return float(coef[0])
+        tendencia = pivot.apply(slope_linear_total, axis=1)
+        
+        df_massa = df_todos.copy()
+        df_massa['grave'] = pd.to_numeric(df_massa['CLASSI_FIN'], errors='coerce').isin([11, 12])
+        sev = df_massa.groupby('NM_BAIRRO').agg(total=('grave', 'count'), graves=('grave', 'sum'))
+        sev['pct_grave'] = sev['graves'] / sev['total']
+        severidade = sev['pct_grave'].reindex(pivot.index).fillna(0)
+    else:
+        ano_val = int(ano_alvo)
+        carga = pivot[ano_val].astype(float)
+        
+        anos_hist = [a for a in anos if a < ano_val]
+        if anos_hist:
+            hist = pivot[anos_hist].astype(float)
+            hist_mean = hist.mean(axis=1)
+            hist_std = hist.std(axis=1).where(lambda x: x > 0, 1.0)
+            anomalia = ((pivot[ano_val] - hist_mean) / hist_std).clip(-3, 5)
+        else:
+            anomalia = pd.Series(0.0, index=pivot.index)
+            
+        anos_tend = [a for a in anos if a <= ano_val]
+        if len(anos_tend) >= 2:
+            anos_tend_arr = np.array(anos_tend, dtype=float)
+            anos_tend_c = anos_tend_arr - anos_tend_arr.mean()
+            def slope_linear_parcial(row):
+                y = row[anos_tend].values.astype(float)
+                if y.sum() == 0: return 0.0
+                coef = np.polyfit(anos_tend_c, y, 1)
+                return float(coef[0])
+            tendencia = pivot.apply(slope_linear_parcial, axis=1)
+        else:
+            tendencia = pd.Series(0.0, index=pivot.index)
+            
+        df_ano = df_todos[df_todos['ANO'] == ano_val].copy()
+        df_ano['grave'] = pd.to_numeric(df_ano['CLASSI_FIN'], errors='coerce').isin([11, 12])
+        sev = df_ano.groupby('NM_BAIRRO').agg(total=('grave', 'count'), graves=('grave', 'sum'))
+        sev['pct_grave'] = sev['graves'] / sev['total']
+        severidade = sev['pct_grave'].reindex(pivot.index).fillna(0)
 
     def norm(s):
         mn, mx = s.min(), s.max()
@@ -135,7 +161,7 @@ def calcular_score_risco(df_todos):
 
     score_df = pd.DataFrame({
         'Bairro':        pivot.index,
-        'Casos 2025':    carga.values.astype(int),
+        'Casos':         carga.values.astype(int),
         'Anomalia (σ)':  anomalia.round(2).values,
         'Tendência':     tendencia.round(1).values,
         'Graves (%)':    (severidade * 100).round(1).values,
@@ -223,7 +249,7 @@ def buscar_dados_climaticos():
             return pd.read_csv(cache_path, parse_dates=['date'])
         return None
 
-def preparar_clima_mensal(df_clima):
+def abrir_clima_mensal(df_clima):
     df = df_clima.copy()
     df['Ano_Mes'] = df['date'].dt.to_period('M').dt.to_timestamp()
     return df.groupby('Ano_Mes').agg(
@@ -251,22 +277,20 @@ with st.spinner('Sincronizando microdados e mapas locais...'):
     geojson_bairros = carregar_geojson_bairros()
     try:
         df_todos = carregar_todos_dados()
-        df_completo = df_todos[df_todos['ANO'] == 2025].copy() if not df_todos.empty else pd.DataFrame()
-        df_score = calcular_score_risco(df_todos) if not df_todos.empty else pd.DataFrame()
         carregado_com_sucesso = not df_todos.empty
     except Exception as e:
         st.error(f"Erro ao carregar os dados: {e}")
         carregado_com_sucesso = False
 
-if carregado_com_sucesso and not df_completo.empty:
+if carregado_com_sucesso and not df_todos.empty:
 
-    total_casos = len(df_completo)
-    bairro_critico = df_completo['NM_BAIRRO'].value_counts().index[0]
+    df_2025_global = df_todos[df_todos['ANO'] == 2025].copy()
+    total_casos_global = len(df_2025_global)
+    bairro_critico_global = df_2025_global['NM_BAIRRO'].value_counts().index[0] if not df_2025_global.empty else "N/D"
 
-    aba_geral, aba_analitica, aba_tecnica, aba_previsao, aba_clima = st.tabs([
+    aba_geral, aba_analitica, aba_previsao, aba_clima = st.tabs([
         "🟢 Visão Geral da Cidade",
         "📍 Mapa e Análise por Bairro",
-        "🔍 Estudo Técnico & Insights",
         "🔮 Previsão",
         "🌧️ Clima e Correlação",
     ])
@@ -275,8 +299,8 @@ if carregado_com_sucesso and not df_completo.empty:
         st.subheader("Cenário Epidemiológico: Recife 2025")
 
         col1, col2 = st.columns(2)
-        col1.metric("Total de Notificações (2025)", f"{total_casos:,}")
-        col2.metric("Epicentro (Bairro com mais casos)", bairro_critico)
+        col1.metric("Total de Notificações (2025)", f"{total_casos_global:,}")
+        col2.metric("Epicentro (Bairro com mais casos)", bairro_critico_global)
 
         st.divider()
 
@@ -341,19 +365,50 @@ if carregado_com_sucesso and not df_completo.empty:
         st.plotly_chart(fig_area, use_container_width=True)
 
     with aba_analitica:
-        st.subheader("Inteligência Geográfica dos Bairros")
+        col_filtro_aba2, _ = st.columns([1, 3])
+        with col_filtro_aba2:
+            ano_selecionado = st.selectbox(
+                "Selecione o Ano de Análise:",
+                ["Todos os Anos", 2025, 2024, 2023, 2022, 2021],
+                index=1,
+                key="filtro_ano_mapa"
+            )
+
+        df_score_aba2 = calcular_score_risco_dinamico(df_todos, ano_selecionado)
+        
+        if ano_selecionado == "Todos os Anos":
+            df_aba2 = df_todos.copy()
+        else:
+            df_aba2 = df_todos[df_todos['ANO'] == int(ano_selecionado)].copy()
+
+        st.subheader(f"Inteligência Geográfica e Central de Alertas ({ano_selecionado})")
+        
+        bairros_criticos = df_score_aba2[df_score_aba2['Risco'] == 'Crítico']
+        bairros_alto = df_score_aba2[df_score_aba2['Risco'] == 'Alto']
+        
+        if not bairros_criticos.empty:
+            st.error(f"🚨 **ALERTA EPIDEMIOLÓGICO:** {len(bairros_criticos)} bairros encontram-se em **Nível Crítico** de risco. Selecione uma localidade para verificar as diretrizes.")
+        elif not bairros_alto.empty:
+            st.warning(f"⚠️ **ATENÇÃO:** O sistema detectou {len(bairros_alto)} bairros em **Risco Alto**. Recomenda-se acompanhamento preventivo.")
+        else:
+            st.success("✅ **MONITORAMENTO:** Nenhum bairro em nível crítico extremo detectado no momento.")
+
+        c_notif1, c_notif2, c_notif3, c_notif4 = st.columns(4)
+        c_notif1.metric("🔴 Risco Crítico", f"{len(bairros_criticos)} Bairros")
+        c_notif2.metric("🟠 Risco Alto", f"{len(bairros_alto)} Bairros")
+        c_notif3.metric("🟡 Risco Moderado", f"{len(df_score_aba2[df_score_aba2['Risco'] == 'Moderado'])} Bairros")
+        c_notif4.metric("🟢 Risco Baixo", f"{len(df_score_aba2[df_score_aba2['Risco'] == 'Baixo'])} Bairros")
+
+        st.divider()
 
         col_mapa, col_rank = st.columns([1.6, 1])
+        bairro_clicado = None
 
         with col_mapa:
-            st.markdown("**Score de Risco por Bairro**")
-            st.caption(
-                "Score 0–100: carga atual 2025 (30%) · anomalia histórica Z-score vs 2021–2024 (35%) · "
-                "tendência de longo prazo por regressão linear (20%) · % casos graves/alarme (15%)."
-            )
+            st.markdown(f"**Score de Risco por Bairro ({ano_selecionado} - Clique para detalhar)**")
             if geojson_bairros:
                 fig_mapa = px.choropleth_mapbox(
-                    df_score, geojson=geojson_bairros,
+                    df_score_aba2, geojson=geojson_bairros,
                     locations='Bairro', featureidkey='properties.EBAIRRNOME',
                     color='Risco',
                     color_discrete_map=_COR_RISCO,
@@ -363,7 +418,7 @@ if carregado_com_sucesso and not df_completo.empty:
                     opacity=0.75, hover_name='Bairro',
                     hover_data={
                         'Score': True,
-                        'Casos 2025': True,
+                        'Casos': True,
                         'Anomalia (σ)': True,
                         'Tendência': True,
                         'Graves (%)': True,
@@ -371,22 +426,24 @@ if carregado_com_sucesso and not df_completo.empty:
                     },
                 )
                 fig_mapa.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-                st.plotly_chart(fig_mapa, use_container_width=True)
+                
+                mapa_evento = st.plotly_chart(
+                    fig_mapa, 
+                    use_container_width=True, 
+                    on_select="rerun", 
+                    selection_mode="points"
+                )
+                
+                if mapa_evento and len(mapa_evento.selection.points) > 0:
+                    bairro_clicado = mapa_evento.selection.points[0]["location"]
             else:
                 st.warning("Arquivo 'maparecife.geojson' não encontrado na pasta dados.")
 
         with col_rank:
-            ano_rank = st.selectbox(
-                "Ano:",
-                ["Todos os Anos", 2021, 2022, 2023, 2024, 2025],
-                index=0,
-                key="sel_rank",
-            )
-            df_rank_base = df_todos if ano_rank == "Todos os Anos" else df_todos[df_todos['ANO'] == ano_rank]
-            df_bairros = df_rank_base['NM_BAIRRO'].value_counts().reset_index()
+            df_bairros = df_aba2['NM_BAIRRO'].value_counts().reset_index()
             df_bairros.columns = ['Bairro', 'Notificações']
 
-            st.markdown(f"**Top 10 Bairros — {ano_rank}**")
+            st.markdown(f"**Top 10 Bairros — {ano_selecionado}**")
             fig_rank = px.bar(
                 df_bairros.head(10).sort_values('Notificações', ascending=True),
                 x='Notificações', y='Bairro', orientation='h',
@@ -396,76 +453,67 @@ if carregado_com_sucesso and not df_completo.empty:
             st.plotly_chart(fig_rank, use_container_width=True)
 
         st.divider()
-        st.markdown("**Análise Individual por Bairro**")
+        st.markdown("### 📊 Detalhamento Técnico e Insights de Gestão")
+        
         todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
-        escolha = st.selectbox("Selecione um bairro para ver o histórico:", todos_bairros)
-
-        historico_bairro = (
-            df_todos[df_todos['NM_BAIRRO'] == escolha]
-            .groupby('ANO').size().reset_index(name='Casos')
-        )
-        historico_bairro['ANO'] = historico_bairro['ANO'].astype(str)
-        fig_individual = px.bar(
-            historico_bairro, x='ANO', y='Casos',
-            color_discrete_sequence=["#1f77b4"],
-            text='Casos',
-        )
-        fig_individual.update_traces(textposition='outside', textfont_size=12)
-        fig_individual.update_layout(height=320, yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2]))
-        st.plotly_chart(fig_individual, use_container_width=True)
-
-    with aba_tecnica:
-        st.subheader("Estudo Técnico e Monitoramento Ativo")
-        
-        st.markdown("**📢 Central de Notificações e Alertas**")
-        
-        bairros_criticos = df_score[df_score['Risco'] == 'Crítico']
-        bairros_alto = df_score[df_score['Risco'] == 'Alto']
-        
-        if not bairros_criticos.empty:
-            st.error(f"🚨 **ALERTA EPIDEMIOLÓGICO:** {len(bairros_criticos)} bairros encontram-se em **Nível Crítico** de risco. Ação imediata recomendada.")
-        elif not bairros_alto.empty:
-            st.warning(f"⚠️ **ATENÇÃO:** O sistema detectou {len(bairros_alto)} bairros em **Risco Alto**. Recomenda-se monitoramento diário da curva.")
-        else:
-            st.success("✅ **MONITORAMENTO:** Nenhum bairro em nível crítico extremo no momento. Cenário sob controle.")
-
-        c_notif1, c_notif2, c_notif3, c_notif4 = st.columns(4)
-        c_notif1.metric("🔴 Risco Crítico", f"{len(bairros_criticos)} Bairros")
-        c_notif2.metric("🟠 Risco Alto", f"{len(bairros_alto)} Bairros")
-        c_notif3.metric("🟡 Risco Moderado", f"{len(df_score[df_score['Risco'] == 'Moderado'])} Bairros")
-        c_notif4.metric("🟢 Risco Baixo", f"{len(df_score[df_score['Risco'] == 'Baixo'])} Bairros")
-
-        st.divider()
-
-        st.markdown("**📈 Predições e Tendências Estruturais**")
-        try:
-            row_score = df_score[df_score['Bairro'] == bairro_critico].iloc[0]
-            tendencia_epicentro = row_score['Tendência']
-            sinal = "+" if tendencia_epicentro > 0 else ""
-            tendencia_arredondada = int(round(tendencia_epicentro))
+        index_padrao = 0
+        if bairro_clicado and bairro_clicado in todos_bairros:
+            index_padrao = todos_bairros.index(bairro_clicado)
+            st.success(f"📍 Filtro ativo por clique no mapa: **{bairro_clicado}**")
             
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Foco da Análise", bairro_critico)
-            m2.metric("Score Algorítmico", f"{row_score['Score']:.1f} / 100")
-            m3.metric("Projeção do Modelo", f"{sinal}{tendencia_arredondada}", "Novos Casos Projetados", delta_color="inverse")
+        escolha = st.selectbox("Selecione um bairro (ou clique diretamente no mapa acima):", todos_bairros, index=index_padrao)
+
+        row_score = df_score_aba2[df_score_aba2['Bairro'] == escolha].iloc[0]
+        tendencia_bairro = row_score['Tendência']
+        sinal = "+" if tendencia_bairro > 0 else ""
+        tendencia_arredondada = int(round(tendencia_bairro))
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Score Algorítmico", f"{row_score['Score']:.1f} / 100")
+        m2.metric("Classificação de Risco Atual", row_score['Risco'])
+        m3.metric("Projeção Temporal", f"{sinal}{tendencia_arredondada}", "Novos Casos/Ano (Tendência)")
+
+        st.info(f"**ANÁLISE PREDITIVA E CONTEXTO ({escolha}):** O cálculo de regressão linear baseado na série histórica identifica um desvio de **{row_score['Anomalia (σ)']} σ** e uma taxa de gravidade clínica de **{row_score['Graves (%)']}%** dos casos.")
+
+        col_grafico, col_insights = st.columns([1.5, 1])
+
+        with col_grafico:
+            historico_bairro = (
+                df_todos[df_todos['NM_BAIRRO'] == escolha]
+                .groupby('ANO').size().reset_index(name='Casos')
+            )
+            historico_bairro['ANO'] = historico_bairro['ANO'].astype(str)
+            fig_individual = px.bar(
+                historico_bairro, x='ANO', y='Casos',
+                color_discrete_sequence=["#1f77b4"],
+                text='Casos',
+            )
+            fig_individual.update_traces(textposition='outside', textfont_size=12)
+            fig_individual.update_layout(height=300, yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2]), margin=dict(t=20, b=0))
+            st.plotly_chart(fig_individual, use_container_width=True)
+
+        with col_insights:
+            casos_bairro = df_aba2[df_aba2['NM_BAIRRO'] == escolha].shape[0]
+            risco_atual = row_score['Risco']
+            pct_graves = row_score['Graves (%)']
+            tendencia = row_score['Tendência']
+            anomalia = row_score['Anomalia (σ)']
             
-            st.info(f"**ANÁLISE PREDITIVA:** O cálculo de regressão linear da série histórica (2021-2025) aponta para o epicentro ({bairro_critico}) uma tendência de crescimento estrutural de **{sinal}{tendencia_arredondada} novos casos** por ano.")
-        except:
-            st.info("Predição não disponível para o bairro selecionado.")
-
-        st.divider()
-
-        st.markdown("### 📋 Insights de Gestão (Apoio à Tomada de Decisão)")
-        col_st1, col_st2, col_st3 = st.columns(3)
-        
-        casos_epicentro = df_completo[df_completo['NM_BAIRRO'] == bairro_critico].shape[0]
-        agentes_necessarios = max(1, casos_epicentro // 20) 
-        
-        col_st1.warning(f"**🏥 Pressão nas UBS:**\nEspera-se alta sobrecarga na rede de atenção básica de **{bairro_critico}**. É recomendável reforçar a triagem e direcionar insumos de hidratação para as unidades locais.")
-        
-        col_st2.error(f"**👷 Impacto Operacional:**\nPara conter o avanço neste epicentro, estima-se o deslocamento estratégico de **~{agentes_necessarios} agentes de endemias** para bloqueio de focos e eliminação de criadouros.")
-        
-        col_st3.info(f"**🦟 Gatilho Ambiental (Protocolo):**\nSolicitar à vigilância sanitária a vistoria de fatores exógenos em **{bairro_critico}**. Priorizar rotas com histórico de **canais a céu aberto, acúmulo de lixo irregular e intermitência hídrica**.")
+            fator_gravidade = 1.5 if pct_graves > 5.0 else 1.0
+            agentes_necessarios = max(2, int((casos_bairro / 15) * fator_gravidade))
+            
+            if risco_atual in ['Crítico', 'Alto']:
+                st.error(f"**🚨 Risco de Colapso (UBS):**\nA taxa de gravidade clínica de **{pct_graves}%** em {escolha} exige alerta vermelho. Necessário reforço intensivo de leitos de retaguarda e insumos venosos.")
+                st.error(f"**🔥 Força-Tarefa (Operacional):**\nO modelo exige bloqueio de transmissão urgente. Deslocar **~{agentes_necessarios} agentes** para varredura e aplicação de fumacê.")
+                st.error(f"**⚠️ Fator Ambiental Severo:**\nAnomalia grave de **{anomalia} desvios padrões** detectada. Acionar a Emlurb para desobstrução imediata de canais e remoção de pontos crônicos de lixo.")
+            elif risco_atual == 'Moderado':
+                st.warning(f"**🏥 Atenção Primária (UBS):**\nO crescimento estrutural de **+{tendencia:.1f} casos/ano** aponta para gargalos futuros na triagem de {escolha}. Garantir estoque preventivo de hidratação.")
+                st.warning(f"**🚶‍♂️ Bloqueio Focal (Operacional):**\nRecomendado o direcionamento de **~{agentes_necessarios} agentes** para ações de conscientização e eliminação de criadouros.")
+                st.warning(f"**🌧️ Risco Ambiental Preventivo:**\nInspecionar áreas com histórico de alagamento e terrenos baldios em {escolha} para evitar a transição deste bairro para o Nível Alto.")
+            else:
+                st.success(f"**✅ Estabilidade (UBS):**\nO fluxo na rede de atenção básica de {escolha} encontra-se dentro da normalidade. A gravidade atual ({pct_graves}%) permite atendimentos de rotina.")
+                st.success(f"**🧹 Patrulha de Rotina (Operacional):**\nO volume atual demanda apenas patrulhamento padrão com **~{agentes_necessarios} agentes** da vigilância ambiental.")
+                st.success(f"**🌱 Ambiente Controlado:**\nCenário favorável. Recomenda-se apenas a manutenção de campanhas educativas focadas em depósitos de água.")
 
     with aba_previsao:
         st.subheader("Previsão de Casos — Regressão Linear com Sazonalidade")
@@ -614,7 +662,7 @@ if carregado_com_sucesso and not df_completo.empty:
                 "Verifique a conexão com a internet e tente novamente."
             )
         else:
-            df_clima_mensal = preparar_clima_mensal(df_clima)
+            df_clima_mensal = abrir_clima_mensal(df_clima)
             serie_dengue = preparar_serie_mensal(df_todos, "Recife — Total")
 
             df_merged_base = pd.merge(
