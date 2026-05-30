@@ -269,8 +269,8 @@ def _gerar_previsao_6m(serie, model, resid_std):
     return pd.DataFrame({
         'Ano_Mes':  datas,
         'Previsao': y_fut,
-        'IC_inf':   np.maximum(y_fut - 1.96 * resid_std, 0),
-        'IC_sup':   y_fut + 1.96 * resid_std,
+        'IC_inf':   np.maximum(y_fut * 0.90, 0),
+        'IC_sup':   y_fut * 1.10,
     })
 
 with st.spinner('Sincronizando microdados e mapas locais...'):
@@ -375,17 +375,17 @@ if carregado_com_sucesso and not df_todos.empty:
             )
 
         df_score_aba2 = calcular_score_risco_dinamico(df_todos, ano_selecionado)
-        
+
         if ano_selecionado == "Todos os Anos":
             df_aba2 = df_todos.copy()
         else:
             df_aba2 = df_todos[df_todos['ANO'] == int(ano_selecionado)].copy()
 
         st.subheader(f"Inteligência Geográfica e Central de Alertas ({ano_selecionado})")
-        
+
         bairros_criticos = df_score_aba2[df_score_aba2['Risco'] == 'Crítico']
         bairros_alto = df_score_aba2[df_score_aba2['Risco'] == 'Alto']
-        
+
         if not bairros_criticos.empty:
             st.error(f"🚨 **ALERTA EPIDEMIOLÓGICO:** {len(bairros_criticos)} bairros encontram-se em **Nível Crítico** de risco. Selecione uma localidade para verificar as diretrizes.")
         elif not bairros_alto.empty:
@@ -426,14 +426,14 @@ if carregado_com_sucesso and not df_todos.empty:
                     },
                 )
                 fig_mapa.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-                
+
                 mapa_evento = st.plotly_chart(
-                    fig_mapa, 
-                    use_container_width=True, 
-                    on_select="rerun", 
+                    fig_mapa,
+                    use_container_width=True,
+                    on_select="rerun",
                     selection_mode="points"
                 )
-                
+
                 if mapa_evento and len(mapa_evento.selection.points) > 0:
                     bairro_clicado = mapa_evento.selection.points[0]["location"]
             else:
@@ -454,13 +454,13 @@ if carregado_com_sucesso and not df_todos.empty:
 
         st.divider()
         st.markdown("### 📊 Detalhamento Técnico e Insights de Gestão")
-        
+
         todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
         index_padrao = 0
         if bairro_clicado and bairro_clicado in todos_bairros:
             index_padrao = todos_bairros.index(bairro_clicado)
             st.success(f"📍 Filtro ativo por clique no mapa: **{bairro_clicado}**")
-            
+
         escolha = st.selectbox("Selecione um bairro (ou clique diretamente no mapa acima):", todos_bairros, index=index_padrao)
 
         row_score = df_score_aba2[df_score_aba2['Bairro'] == escolha].iloc[0]
@@ -498,10 +498,10 @@ if carregado_com_sucesso and not df_todos.empty:
             pct_graves = row_score['Graves (%)']
             tendencia = row_score['Tendência']
             anomalia = row_score['Anomalia (σ)']
-            
+
             fator_gravidade = 1.5 if pct_graves > 5.0 else 1.0
             agentes_necessarios = max(2, int((casos_bairro / 15) * fator_gravidade))
-            
+
             if risco_atual in ['Crítico', 'Alto']:
                 st.error(f"**🚨 Risco de Colapso (UBS):**\nA taxa de gravidade clínica de **{pct_graves}%** em {escolha} exige alerta vermelho. Necessário reforço intensivo de leitos de retaguarda e insumos venosos.")
                 st.error(f"**🔥 Força-Tarefa (Operacional):**\nO modelo exige bloqueio de transmissão urgente. Deslocar **~{agentes_necessarios} agentes** para varredura e aplicação de fumacê.")
@@ -566,7 +566,7 @@ if carregado_com_sucesso and not df_todos.empty:
                 fill='toself',
                 fillcolor='rgba(255,127,14,0.15)',
                 line=dict(color='rgba(0,0,0,0)'),
-                name='IC 95%',
+                name='Margem ±10%',
             ))
 
             fig_prev.add_trace(go.Scatter(
@@ -601,13 +601,13 @@ if carregado_com_sucesso and not df_todos.empty:
                     ))
                     x_band_bt = list(teste_bt['Ano_Mes']) + list(teste_bt['Ano_Mes'])[::-1]
                     y_band_bt = (
-                        list(y_pred_bt + 1.96 * res_bt)
-                        + list(np.maximum(y_pred_bt - 1.96 * res_bt, 0))[::-1]
+                        list(y_pred_bt * 1.10)
+                        + list(np.maximum(y_pred_bt * 0.90, 0))[::-1]
                     )
                     fig_bt.add_trace(go.Scatter(
                         x=x_band_bt, y=y_band_bt,
                         fill='toself', fillcolor='rgba(255,127,14,0.15)',
-                        line=dict(color='rgba(0,0,0,0)'), name='IC 95%',
+                        line=dict(color='rgba(0,0,0,0)'), name='Margem ±10%',
                     ))
                     fig_bt.add_trace(go.Scatter(
                         x=teste_bt['Ano_Mes'], y=y_pred_bt,
