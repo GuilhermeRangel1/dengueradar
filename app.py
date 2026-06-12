@@ -12,8 +12,450 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 st.set_page_config(page_title="DengueRadar | Recife", layout="wide", page_icon="🦟")
-st.title("🦟 DengueRadar: Monitoramento Recife")
-st.caption("📌 Fonte: Microdados Oficiais (SINAN/Prefeitura do Recife) | Anos: 2021–2025")
+
+custom_css = """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body,
+    [class*="css"],
+    .stApp,
+    .stApp > div,
+    section[data-testid="stSidebar"],
+    div[data-testid="stAppViewContainer"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        background-color: #0d1117 !important;
+        color: #e6edf3 !important;
+    }
+
+    #MainMenu,
+    footer,
+    header,
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"],
+    .reportview-container .main .block-container > div:first-child > div:first-child > div > img,
+    button[title="View fullscreen"],
+    .stDeployButton { 
+        display: none !important; 
+        visibility: hidden !important;
+    }
+
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 4rem !important;
+        padding-right: 4rem !important;
+        max-width: 100% !important;
+    }
+
+    div[data-testid="stAppViewContainer"] > section.main {
+        padding-top: 0 !important;
+    }
+
+    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"],
+    div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"],
+    div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
+        padding-left: max(1.5rem, 2vw);
+        padding-right: max(1.5rem, 2vw);
+    }
+
+    h1 {
+        font-size: 1.75rem !important;
+        font-weight: 700 !important;
+        color: #f0f6fc !important;
+        letter-spacing: -0.02em !important;
+        line-height: 1.25 !important;
+        margin: 0 0 0.25rem !important;
+    }
+    h2 {
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
+        color: #f0f6fc !important;
+        letter-spacing: -0.01em !important;
+        margin: 1.75rem 0 0.75rem !important;
+    }
+    h3 {
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        color: #c9d1d9 !important;
+        margin: 1.25rem 0 0.5rem !important;
+    }
+    p, .stMarkdown p {
+        color: #8b949e !important;
+        line-height: 1.65 !important;
+        font-size: 0.9rem !important;
+    }
+
+    div[data-testid="stCaptionContainer"] p,
+    small, .stCaption {
+        font-size: 0.78rem !important;
+        color: #6e7681 !important;
+        font-weight: 400 !important;
+    }
+
+    hr {
+        border: none !important;
+        border-top: 1px solid #21262d !important;
+        margin: 1.5rem 0 !important;
+    }
+
+    div[data-testid="metric-container"] {
+        background: #161b22 !important;
+        border: 1px solid #21262d !important;
+        border-radius: 10px !important;
+        padding: 1.25rem 1.5rem !important;
+        position: relative !important;
+        overflow: hidden !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    div[data-testid="metric-container"]:hover {
+        border-color: #30363d !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+    }
+    div[data-testid="metric-container"]::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #3fb950, #238636);
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    div[data-testid="metric-container"]:hover::before { opacity: 1; }
+
+    div[data-testid="metric-container"] label,
+    div[data-testid="metric-container"] [data-testid="stMetricLabel"] p {
+        font-size: 0.78rem !important;
+        font-weight: 500 !important;
+        color: #6e7681 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
+        margin-bottom: 0.35rem !important;
+    }
+    div[data-testid="stMetricValue"] {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 1.6rem !important;
+        font-weight: 500 !important;
+        color: #f0f6fc !important;
+        line-height: 1.2 !important;
+    }
+    div[data-testid="stMetricDelta"] {
+        font-size: 0.78rem !important;
+        color: #6e7681 !important;
+        margin-top: 0.2rem !important;
+    }
+
+    .stTabs {
+        margin-top: 0 !important;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        background: transparent !important;
+        border-bottom: 1px solid #21262d !important;
+        gap: 0 !important;
+        padding: 0 max(1.5rem, 2vw) !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: transparent !important;
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+        border-radius: 0 !important;
+        color: #6e7681 !important;
+        font-size: 0.875rem !important;
+        font-weight: 500 !important;
+        padding: 0.75rem 1.25rem !important;
+        margin-right: 0 !important;
+        transition: color 0.15s ease, border-color 0.15s ease !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #c9d1d9 !important;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #f0f6fc !important;
+        border-bottom: 2px solid #3fb950 !important;
+    }
+    div[data-testid="stTabContent"] {
+        padding: 1.5rem max(1.5rem, 2vw) !important;
+    }
+
+    div[data-baseweb="select"] > div {
+        background: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 6px !important;
+        color: #e6edf3 !important;
+        font-size: 0.875rem !important;
+        transition: all 0.2s ease !important;
+        cursor: pointer !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    }
+    div[data-baseweb="select"] > div:hover {
+        border-color: #8b949e !important;
+    }
+    div[data-baseweb="select"] > div:focus-within {
+        border-color: #3fb950 !important;
+        box-shadow: 0 0 0 1px #3fb950 !important;
+    }
+    div[data-baseweb="select"] [data-testid="stMarkdownContainer"] p {
+        color: #e6edf3 !important;
+        font-weight: 500 !important;
+    }
+
+    [data-baseweb="popover"] [data-baseweb="menu"] {
+        background: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 6px !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    }
+    [data-baseweb="popover"] [role="option"] {
+        color: #c9d1d9 !important;
+        font-size: 0.875rem !important;
+        padding: 10px 16px !important;
+        transition: background 0.1s ease !important;
+    }
+    [data-baseweb="popover"] [role="option"]:hover,
+    [data-baseweb="popover"] [aria-selected="true"] {
+        background: #21262d !important;
+        color: #f0f6fc !important;
+        font-weight: 500 !important;
+    }
+
+    div[data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] {
+        background: #3fb950 !important;
+        border-color: #3fb950 !important;
+        box-shadow: 0 0 0 2px #0d1117 !important;
+    }
+    div[data-testid="stSlider"] [data-baseweb="slider"] > div > div {
+        background: #3fb950 !important;
+    }
+    div[data-testid="stSlider"] [data-baseweb="slider"] > div > div:first-child {
+        background: #30363d !important;
+    }
+
+    div[data-testid="stRadio"] > label {
+        color: #c9d1d9 !important;
+        font-size: 0.875rem !important;
+        margin-bottom: 0.4rem !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        display: flex;
+        flex-direction: row;
+        background: #0d1117;
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        width: fit-content;
+        gap: 0;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        padding: 6px 16px;
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin: 0;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+        background: #21262d;
+        color: #f0f6fc !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] {
+        background: #21262d;
+        color: #f0f6fc !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    div[data-testid="stRadio"] [data-baseweb="radio"] div {
+        margin: 0 !important;
+    }
+    div[data-testid="stRadio"] [data-testid="stMarkdownContainer"] p {
+        color: inherit !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stRadio"] [data-baseweb="radio"] svg {
+        display: none !important;
+    }
+
+    div[data-testid="stAlert"] {
+        border-radius: 8px !important;
+        padding: 0.875rem 1rem !important;
+        font-size: 0.875rem !important;
+        line-height: 1.5 !important;
+        border-left: 3px solid !important;
+        border-top: none !important;
+        border-right: none !important;
+        border-bottom: none !important;
+    }
+    div[data-testid="stAlert"][data-baseweb="notification"][kind="negative"],
+    div[data-testid="stAlert"] > div[class*="error"],
+    .element-container div[data-testid="stAlert"]:has([data-testid="stMarkdownContainer"] [class*="error"]) {
+        background: rgba(248,81,73,0.08) !important;
+        border-left-color: #f85149 !important;
+        color: #ffa19b !important;
+    }
+    div[data-testid="stAlert"][kind="warning"] {
+        background: rgba(210,153,34,0.08) !important;
+        border-left-color: #d29922 !important;
+        color: #e3b341 !important;
+    }
+    div[data-testid="stAlert"][kind="success"] {
+        background: rgba(63,185,80,0.08) !important;
+        border-left-color: #3fb950 !important;
+        color: #56d364 !important;
+    }
+    div[data-testid="stAlert"][kind="info"] {
+        background: rgba(56,139,253,0.08) !important;
+        border-left-color: #388bfd !important;
+        color: #79c0ff !important;
+    }
+    div[data-testid="stAlert"] {
+        background-color: #161b22 !important;
+    }
+
+    details[data-testid="stExpander"] {
+        background: #161b22 !important;
+        border: 1px solid #21262d !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+    details[data-testid="stExpander"] summary {
+        background: transparent !important;
+        color: #c9d1d9 !important;
+        font-size: 0.875rem !important;
+        font-weight: 500 !important;
+        padding: 0.75rem 1rem !important;
+        cursor: pointer !important;
+        transition: background 0.15s ease !important;
+    }
+    details[data-testid="stExpander"] summary:hover {
+        background: rgba(255,255,255,0.03) !important;
+    }
+    details[data-testid="stExpander"] summary svg {
+        color: #6e7681 !important;
+    }
+
+    div[data-testid="stSpinner"] > div {
+        border-color: #3fb950 transparent transparent !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] {
+        gap: 1rem !important;
+        align-items: stretch !important;
+    }
+
+    div[data-testid="stWidgetLabel"] p,
+    label[data-testid="stWidgetLabel"] {
+        font-size: 0.75rem !important;
+        font-weight: 500 !important;
+        color: #8b949e !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        margin-bottom: 0.4rem !important;
+    }
+
+    code {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.82em !important;
+        background: #21262d !important;
+        color: #79c0ff !important;
+        padding: 0.1em 0.4em !important;
+        border-radius: 4px !important;
+        border: 1px solid #30363d !important;
+    }
+
+    strong, b {
+        color: #f0f6fc !important;
+        font-weight: 600 !important;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+</style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+.dr-navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 4rem;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+}
+.dr-navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+.dr-navbar-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #238636, #3fb950);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.dr-navbar-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f0f6fc;
+    letter-spacing: -0.01em;
+    font-family: 'Inter', sans-serif;
+}
+.dr-navbar-title span { color: #3fb950; }
+.dr-navbar-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.dr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 9999px;
+    padding: 0.22rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #8b949e;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+}
+.dr-badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #3fb950;
+    animation: pulseDot 2s infinite;
+}
+@keyframes pulseDot {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+</style>
+
+<nav class="dr-navbar">
+  <div class="dr-navbar-brand">
+    <div class="dr-navbar-icon">🦟</div>
+    <span class="dr-navbar-title">Dengue<span>Radar</span></span>
+  </div>
+  <div class="dr-navbar-meta">
+    <span class="dr-badge"><span class="dr-badge-dot"></span>Recife · 2021–2025</span>
+    <span class="dr-badge">SINAN · Prefeitura</span>
+  </div>
+</nav>
+""", unsafe_allow_html=True)
 
 _MAPA_CLASSI = {
     5: 'Descartado', 8: 'Inconclusivo',
@@ -22,10 +464,10 @@ _MAPA_CLASSI = {
 }
 
 _COR_RISCO = {
-    'Baixo':    '#2ca02c',
-    'Moderado': '#f9c74f',
-    'Alto':     '#ff7f0e',
-    'Crítico':  '#d62728',
+    'Baixo':    '#22c55e',
+    'Moderado': '#eab308',
+    'Alto':     '#f97316',
+    'Crítico':  '#ef4444',
 }
 
 @st.cache_data
@@ -284,6 +726,10 @@ with st.spinner('Sincronizando microdados e mapas locais...'):
 
 if carregado_com_sucesso and not df_todos.empty:
 
+    todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
+    if 'bairro_alvo' not in st.session_state:
+        st.session_state.bairro_alvo = todos_bairros[0] if todos_bairros else None
+
     df_2025_global = df_todos[df_todos['ANO'] == 2025].copy()
     total_casos_global = len(df_2025_global)
     bairro_critico_global = df_2025_global['NM_BAIRRO'].value_counts().index[0] if not df_2025_global.empty else "N/D"
@@ -296,7 +742,21 @@ if carregado_com_sucesso and not df_todos.empty:
     ])
 
     with aba_geral:
-        st.subheader("Cenário Epidemiológico: Recife 2025")
+        st.markdown(f"""
+        <div style="margin-bottom:1.5rem;">
+            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                      letter-spacing:0.08em;color:#3fb950;margin:0 0 0.3rem;">
+                Cenário Epidemiológico
+            </p>
+            <h1 style="font-size:1.6rem;font-weight:700;color:#f0f6fc;
+                       margin:0 0 0.25rem;letter-spacing:-0.02em;">
+                Recife, 2025
+            </h1>
+            <p style="font-size:0.875rem;color:#6e7681;margin:0;">
+                Monitoramento em tempo real com base nos microdados SINAN.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
         col1.metric("Total de Notificações (2025)", f"{total_casos_global:,}")
@@ -306,7 +766,15 @@ if carregado_com_sucesso and not df_todos.empty:
 
         col_titulo_hist, col_filtro_hist = st.columns([3, 1])
         with col_titulo_hist:
-            st.markdown("### Histórico de Casos (2021–2025)")
+            st.markdown("""
+            <div style="padding-top:0.5rem">
+                <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                          letter-spacing:0.08em;color:#6e7681;margin:0 0 0.2rem;">Série Histórica</p>
+                <h2 style="font-size:1.1rem;font-weight:600;color:#f0f6fc;margin:0;letter-spacing:-0.01em;">
+                    Casos de Dengue · 2021–2025
+                </h2>
+            </div>
+            """, unsafe_allow_html=True)
         with col_filtro_hist:
             modo_hist = st.radio(
                 "Visualizar por:",
@@ -331,10 +799,16 @@ if carregado_com_sucesso and not df_todos.empty:
                 x='Semana_Epi', y='Casos', color='ANO',
                 labels={'Semana_Epi': 'Semana Epidemiológica', 'Casos': 'Notificações', 'ANO': 'Ano'},
                 color_discrete_sequence=px.colors.qualitative.Set2,
+                template="plotly_white"
             )
+            fig_area.update_traces(line_shape='spline', mode='lines+markers', marker=dict(size=4))
             fig_area.update_layout(
-                xaxis=dict(dtick=1), margin=dict(t=10),
+                xaxis=dict(dtick=1, showgrid=False), margin=dict(t=10),
+                yaxis=dict(showgrid=True, gridcolor='#f1f5f9'),
                 legend=dict(title='Ano', orientation='h', y=1.05),
+                hovermode="x unified",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
             )
         else:
             _MESES = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun',
@@ -356,10 +830,17 @@ if carregado_com_sucesso and not df_todos.empty:
                 category_orders={'Mês': list(_MESES.values())},
                 labels={'Mês': 'Mês', 'Casos': 'Notificações', 'ANO': 'Ano'},
                 color_discrete_sequence=px.colors.qualitative.Set2,
+                template="plotly_white"
             )
+            fig_area.update_traces(line_shape='spline', mode='lines+markers', marker=dict(size=4))
             fig_area.update_layout(
                 margin=dict(t=10),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor='#f1f5f9'),
                 legend=dict(title='Ano', orientation='h', y=1.05),
+                hovermode="x unified",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
             )
 
         st.plotly_chart(fig_area, use_container_width=True)
@@ -381,7 +862,17 @@ if carregado_com_sucesso and not df_todos.empty:
         else:
             df_aba2 = df_todos[df_todos['ANO'] == int(ano_selecionado)].copy()
 
-        st.subheader(f"Inteligência Geográfica e Central de Alertas ({ano_selecionado})")
+        st.markdown(f"""
+        <div style="margin-bottom:1rem;">
+            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                      letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
+                Inteligência Geográfica
+            </p>
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0;letter-spacing:-0.02em;">
+                Central de Alertas — {ano_selecionado}
+            </h1>
+        </div>
+        """, unsafe_allow_html=True)
 
         bairros_criticos = df_score_aba2[df_score_aba2['Risco'] == 'Crítico']
         bairros_alto = df_score_aba2[df_score_aba2['Risco'] == 'Alto']
@@ -402,7 +893,6 @@ if carregado_com_sucesso and not df_todos.empty:
         st.divider()
 
         col_mapa, col_rank = st.columns([1.6, 1])
-        bairro_clicado = None
 
         with col_mapa:
             st.markdown(f"**Score de Risco por Bairro ({ano_selecionado} - Clique para detalhar)**")
@@ -425,7 +915,26 @@ if carregado_com_sucesso and not df_todos.empty:
                         'Risco': False,
                     },
                 )
-                fig_mapa.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+
+                if st.session_state.bairro_alvo and st.session_state.bairro_alvo in todos_bairros:
+                    feature_alvo = [f for f in geojson_bairros['features'] if f['properties']['EBAIRRNOME'] == st.session_state.bairro_alvo]
+                    if feature_alvo:
+                        geojson_foco = {"type": "FeatureCollection", "features": feature_alvo}
+                        fig_mapa.add_trace(go.Choroplethmapbox(
+                            geojson=geojson_foco,
+                            locations=[st.session_state.bairro_alvo],
+                            z=[1],
+                            colorscale=[[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],
+                            marker_line_width=4,
+                            marker_line_color='#ffffff',
+                            showscale=False,
+                            hoverinfo='skip'
+                        ))
+
+                fig_mapa.update_layout(
+                    margin={"r": 0, "t": 0, "l": 0, "b": 0},
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
 
                 mapa_evento = st.plotly_chart(
                     fig_mapa,
@@ -435,7 +944,11 @@ if carregado_com_sucesso and not df_todos.empty:
                 )
 
                 if mapa_evento and len(mapa_evento.selection.points) > 0:
-                    bairro_clicado = mapa_evento.selection.points[0]["location"]
+                    clicado = mapa_evento.selection.points[0]["location"]
+                    if clicado != st.session_state.bairro_alvo:
+                        st.session_state.bairro_alvo = clicado
+                        st.rerun()
+
             else:
                 st.warning("Arquivo 'maparecife.geojson' não encontrado na pasta dados.")
 
@@ -447,21 +960,43 @@ if carregado_com_sucesso and not df_todos.empty:
             fig_rank = px.bar(
                 df_bairros.head(10).sort_values('Notificações', ascending=True),
                 x='Notificações', y='Bairro', orientation='h',
-                color_discrete_sequence=["#ff7f0e"],
+                color_discrete_sequence=["#2563eb"], 
+                template="plotly_white"
             )
-            fig_rank.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=400)
+            fig_rank.update_layout(
+                margin=dict(l=0, r=0, t=10, b=0), 
+                height=400,
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=False),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
             st.plotly_chart(fig_rank, use_container_width=True)
 
         st.divider()
-        st.markdown("### 📊 Detalhamento Técnico e Insights de Gestão")
+        st.markdown("""
+        <div style="padding: 0.5rem 0 0.75rem;">
+            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                      letter-spacing:0.08em;color:#6e7681;margin:0 0 0.2rem;">
+                Por Localidade
+            </p>
+            <h2 style="font-size:1.1rem;font-weight:600;color:#f0f6fc;margin:0;letter-spacing:-0.01em;">
+                Detalhamento Técnico e Insights de Gestão
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
 
-        todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
-        index_padrao = 0
-        if bairro_clicado and bairro_clicado in todos_bairros:
-            index_padrao = todos_bairros.index(bairro_clicado)
-            st.success(f"📍 Filtro ativo por clique no mapa: **{bairro_clicado}**")
-
-        escolha = st.selectbox("Selecione um bairro (ou clique diretamente no mapa acima):", todos_bairros, index=index_padrao)
+        col_selecao_bairro, _ = st.columns([1, 3])
+        with col_selecao_bairro:
+            idx_seguro = todos_bairros.index(st.session_state.bairro_alvo) if st.session_state.bairro_alvo in todos_bairros else 0
+            escolha = st.selectbox(
+                "Selecione um bairro (ou clique diretamente no mapa acima):", 
+                todos_bairros, 
+                index=idx_seguro
+            )
+            if escolha != st.session_state.bairro_alvo:
+                st.session_state.bairro_alvo = escolha
+                st.rerun()
 
         row_score = df_score_aba2[df_score_aba2['Bairro'] == escolha].iloc[0]
         tendencia_bairro = row_score['Tendência']
@@ -485,11 +1020,19 @@ if carregado_com_sucesso and not df_todos.empty:
             historico_bairro['ANO'] = historico_bairro['ANO'].astype(str)
             fig_individual = px.bar(
                 historico_bairro, x='ANO', y='Casos',
-                color_discrete_sequence=["#1f77b4"],
+                color_discrete_sequence=["#3b82f6"],
                 text='Casos',
+                template="plotly_white"
             )
-            fig_individual.update_traces(textposition='outside', textfont_size=12)
-            fig_individual.update_layout(height=300, yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2]), margin=dict(t=20, b=0))
+            fig_individual.update_traces(textposition='outside', textfont_size=12, marker_line_width=0)
+            fig_individual.update_layout(
+                height=300, 
+                yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2], showgrid=True, gridcolor='#f1f5f9'), 
+                xaxis=dict(showgrid=False),
+                margin=dict(t=20, b=0),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
             st.plotly_chart(fig_individual, use_container_width=True)
 
         with col_insights:
@@ -516,13 +1059,23 @@ if carregado_com_sucesso and not df_todos.empty:
                 st.success(f"**🌱 Ambiente Controlado:**\nCenário favorável. Recomenda-se apenas a manutenção de campanhas educativas focadas em depósitos de água.")
 
     with aba_previsao:
-        st.subheader("Previsão de Casos — Regressão Linear com Sazonalidade")
-        st.caption(
-            "Modelo: tendência linear + componente harmônico mensal (sin/cos). "
-            "Treinado em 2021–2025 (completo). Métrica de qualidade: backtest treino 2021–2023 → teste 2024."
-        )
+        st.markdown("""
+        <div style="margin-bottom:1rem;">
+            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                      letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
+                Modelagem Preditiva
+            </p>
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:-0.02em;">
+                Previsão de Casos
+            </h1>
+            <p style="font-size:0.8rem;color:#6e7681;margin:0;">
+                Regressão linear com sazonalidade harmônica (sin/cos). Treinado em 2021–2025.
+                Backtest: treino 2021–2023 → teste 2024.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        col_ctrl, _ = st.columns([1, 2])
+        col_ctrl, _ = st.columns([1, 3])
         with col_ctrl:
             opcoes_escopo = ["Recife — Total"] + sorted(df_todos['NM_BAIRRO'].dropna().unique().tolist())
             escopo_prev = st.selectbox("Escopo geográfico:", opcoes_escopo, key="sel_prev_escopo")
@@ -555,7 +1108,7 @@ if carregado_com_sucesso and not df_todos.empty:
             fig_prev.add_trace(go.Scatter(
                 x=serie['Ano_Mes'], y=serie['Casos'],
                 name='Histórico Real',
-                line=dict(color='#1f77b4', width=2),
+                line=dict(color='#3b82f6', width=2, shape='spline'),
                 mode='lines',
             ))
 
@@ -564,7 +1117,7 @@ if carregado_com_sucesso and not df_todos.empty:
             fig_prev.add_trace(go.Scatter(
                 x=x_band, y=y_band,
                 fill='toself',
-                fillcolor='rgba(255,127,14,0.15)',
+                fillcolor='rgba(59, 130, 246, 0.1)',
                 line=dict(color='rgba(0,0,0,0)'),
                 name='Margem ±10%',
             ))
@@ -572,18 +1125,23 @@ if carregado_com_sucesso and not df_todos.empty:
             fig_prev.add_trace(go.Scatter(
                 x=df_prev['Ano_Mes'], y=df_prev['Previsao'],
                 name='Previsão (próximos 6 meses)',
-                line=dict(color='#ff7f0e', width=2, dash='dash'),
+                line=dict(color='#f97316', width=2, dash='dash', shape='spline'),
                 mode='lines+markers',
-                marker=dict(size=7),
+                marker=dict(size=6),
             ))
 
             fig_prev.update_layout(
                 xaxis_title='Mês',
                 yaxis_title='Notificações Mensais',
-                yaxis=dict(rangemode='tozero'),
+                yaxis=dict(rangemode='tozero', showgrid=True, gridcolor='#f1f5f9'),
+                xaxis=dict(showgrid=False),
                 legend=dict(orientation='h', y=1.08, x=0),
                 margin=dict(t=10, b=0),
                 height=420,
+                hovermode="x unified",
+                template="plotly_white",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
             )
             st.plotly_chart(fig_prev, use_container_width=True)
 
@@ -593,11 +1151,11 @@ if carregado_com_sucesso and not df_todos.empty:
                     fig_bt = go.Figure()
                     fig_bt.add_trace(go.Scatter(
                         x=treino_bt['Ano_Mes'], y=treino_bt['Casos'],
-                        name='Treino (2021–2023)', line=dict(color='#1f77b4', width=2),
+                        name='Treino (2021–2023)', line=dict(color='#3b82f6', width=2, shape='spline'),
                     ))
                     fig_bt.add_trace(go.Scatter(
                         x=teste_bt['Ano_Mes'], y=teste_bt['Casos'],
-                        name='Real 2024', line=dict(color='#2ca02c', width=2),
+                        name='Real 2024', line=dict(color='#22c55e', width=2, shape='spline'),
                     ))
                     x_band_bt = list(teste_bt['Ano_Mes']) + list(teste_bt['Ano_Mes'])[::-1]
                     y_band_bt = (
@@ -606,20 +1164,25 @@ if carregado_com_sucesso and not df_todos.empty:
                     )
                     fig_bt.add_trace(go.Scatter(
                         x=x_band_bt, y=y_band_bt,
-                        fill='toself', fillcolor='rgba(255,127,14,0.15)',
+                        fill='toself', fillcolor='rgba(249, 115, 22, 0.1)',
                         line=dict(color='rgba(0,0,0,0)'), name='Margem ±10%',
                     ))
                     fig_bt.add_trace(go.Scatter(
                         x=teste_bt['Ano_Mes'], y=y_pred_bt,
                         name='Previsto 2024',
-                        line=dict(color='#ff7f0e', width=2, dash='dash'),
-                        mode='lines+markers', marker=dict(size=7),
+                        line=dict(color='#f97316', width=2, dash='dash', shape='spline'),
+                        mode='lines+markers', marker=dict(size=5),
                     ))
                     fig_bt.update_layout(
                         xaxis_title='Mês', yaxis_title='Casos',
-                        yaxis=dict(rangemode='tozero'),
+                        yaxis=dict(rangemode='tozero', showgrid=True, gridcolor='#f1f5f9'),
+                        xaxis=dict(showgrid=False),
                         legend=dict(orientation='h', y=1.12),
                         margin=dict(t=10), height=300,
+                        hovermode="x unified",
+                        template="plotly_white",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
                     )
                     st.plotly_chart(fig_bt, use_container_width=True)
                 else:
@@ -647,11 +1210,21 @@ if carregado_com_sucesso and not df_todos.empty:
             )
 
     with aba_clima:
-        st.subheader("Correlação Climática com Casos de Dengue")
-        st.caption(
-            "Dados meteorológicos de Recife via Open-Meteo (ERA5 reanalysis). "
-            "A defasagem representa o tempo de incubação/desenvolvimento do Aedes aegypti após evento climático."
-        )
+        st.markdown("""
+        <div style="margin-bottom:1rem;">
+            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                      letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
+                Análise Ambiental
+            </p>
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:-0.02em;">
+                Clima e Correlação
+            </h1>
+            <p style="font-size:0.8rem;color:#6e7681;margin:0;">
+                Dados meteorológicos via Open-Meteo (ERA5 reanalysis). A defasagem captura o ciclo biológico
+                do <em>Aedes aegypti</em> (~2–4 semanas após evento climático).
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
         with st.spinner("Carregando dados climáticos..."):
             df_clima = buscar_dados_climaticos()
@@ -724,26 +1297,32 @@ if carregado_com_sucesso and not df_todos.empty:
                 x=df_plot['Ano_Mes'],
                 y=df_plot['Casos'],
                 name='Casos Dengue',
-                marker_color='#d62728',
-                opacity=0.75,
+                marker_color='#ef4444',
+                opacity=0.8,
                 yaxis='y1',
             ))
             fig_dual.add_trace(go.Scatter(
                 x=df_plot['Ano_Mes'],
                 y=df_plot['precipitacao_mm'],
                 name=f'Precipitação acumulada (lag {lag_meses}m)',
-                line=dict(color='#1f77b4', width=2),
+                line=dict(color='#3b82f6', width=2, shape='spline'),
                 mode='lines+markers',
-                marker=dict(size=5),
+                marker=dict(size=4),
                 yaxis='y2',
             ))
             fig_dual.update_layout(
-                yaxis=dict(title=dict(text='Notificações Mensais', font=dict(color='#d62728')), tickfont=dict(color='#d62728')),
-                yaxis2=dict(title=dict(text='Precipitação (mm)', font=dict(color='#1f77b4')), tickfont=dict(color='#1f77b4'),
-                            overlaying='y', side='right'),
+                yaxis=dict(title=dict(text='Notificações Mensais', font=dict(color='#ef4444')), tickfont=dict(color='#ef4444'), showgrid=False),
+                yaxis2=dict(title=dict(text='Precipitação (mm)', font=dict(color='#3b82f6')), tickfont=dict(color='#3b82f6'),
+                            overlaying='y', side='right', showgrid=True, gridcolor='#f1f5f9'),
+                xaxis=dict(showgrid=False),
                 legend=dict(orientation='h', y=1.08, x=0),
                 margin=dict(t=10, b=0),
                 height=400,
+                hovermode="x unified",
+                template="plotly_white",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(family="Inter")
             )
             st.plotly_chart(fig_dual, use_container_width=True)
 
@@ -755,24 +1334,30 @@ if carregado_com_sucesso and not df_todos.empty:
                 x=df_clima_mensal['Ano_Mes'],
                 y=df_clima_mensal['temp_media_c'],
                 name='Temperatura Média (°C)',
-                line=dict(color='#ff7f0e', width=2),
+                line=dict(color='#f97316', width=2, shape='spline'),
                 mode='lines',
             ))
             fig_temp.add_trace(go.Scatter(
                 x=df_clima_mensal['Ano_Mes'],
                 y=df_clima_mensal['umidade_pct'],
                 name='Umidade Relativa (%)',
-                line=dict(color='#17becf', width=2),
+                line=dict(color='#64748b', width=2, shape='spline'),
                 mode='lines',
                 yaxis='y2',
             ))
             fig_temp.update_layout(
-                yaxis=dict(title=dict(text='Temperatura (°C)', font=dict(color='#ff7f0e')), tickfont=dict(color='#ff7f0e')),
-                yaxis2=dict(title=dict(text='Umidade (%)', font=dict(color='#17becf')), tickfont=dict(color='#17becf'),
-                            overlaying='y', side='right'),
+                yaxis=dict(title=dict(text='Temperatura (°C)', font=dict(color='#f97316')), tickfont=dict(color='#f97316'), showgrid=False),
+                yaxis2=dict(title=dict(text='Umidade (%)', font=dict(color='#64748b')), tickfont=dict(color='#64748b'),
+                            overlaying='y', side='right', showgrid=True, gridcolor='#f1f5f9'),
+                xaxis=dict(showgrid=False),
                 legend=dict(orientation='h', y=1.08, x=0),
                 margin=dict(t=10, b=0),
                 height=350,
+                hovermode="x unified",
+                template="plotly_white",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(family="Inter")
             )
             st.plotly_chart(fig_temp, use_container_width=True)
 
