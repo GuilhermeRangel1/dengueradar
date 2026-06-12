@@ -15,12 +15,12 @@ O **DengueRadar** é uma plataforma web para monitoramento, análise preditiva e
 ## 🚀 Funcionalidades Principais
 
 * **🟢 Visão Geral da Cidade:** Painel consolidado com a curva de contágio municipal iterativa, alternável entre Semana Epidemiológica e Mês. Identificação automática do epicentro atual e cálculo em tempo real do total de notificações do ano vigente.
-* **📍 Central de Alertas e Inteligência Geográfica:** Mapa coroplético interativo integrado ao GeoJSON oficial de bairros do Recife. Calcula dinamicamente um **Score de Risco Algorítmico (Baixo, Moderado, Alto e Crítico)** baseado em 4 pilares: *carga acumulada, anomalia estatística ($\sigma$), tendência linear e severidade clínica* (% de casos graves).
+* **📍 Central de Alertas e Inteligência Geográfica:** Mapa coroplético interativo integrado ao GeoJSON oficial de bairros do Recife. Calcula dinamicamente um **Score de Risco Algorítmico (Baixo, Moderado, Alto e Crítico)** baseado em 4 pilares: *carga acumulada, anomalia estatística (desvio padrão), tendência linear e severidade clínica* (% de casos graves).
 * **📋 Insights de Gestão Automatizados:** Painel que gera recomendações automáticas para os gestores públicos de saúde ao selecionar um bairro, divididas em:
   * **UBS:** Alertas sobre capacidade de triagem, leitos de retaguarda e insumos venosos.
   * **Operacional:** Dimensionamento de força-tarefa (estimativa de agentes de endemias necessários) e bloqueio focal com fumacê.
   * **Ambiental:** Gatilhos para ações da Emlurb (limpeza de canais, remoção de pontos críticos de lixo).
-* **🔮 Modelagem Preditiva Avançada:** Regressão Linear múltipla enriquecida com componentes harmônicos sazonais ($\sin$/$\cos$) treinada com o histórico de 2021 a 2025 para projetar os próximos 6 meses de contágio. Inclui aba de transparência com métricas de *backtest* de validação ($R^2$, MAE, RMSE) e intervalo de confiança de $\pm10\%$.
+* **🔮 Modelagem Preditiva Avançada:** Regressão Linear múltipla enriquecida com componentes harmônicos sazonais (funções seno e cosseno) treinada com o histórico de 2021 a 2025 para projetar os próximos 6 meses de contágio. Inclui aba de transparência com métricas de *backtest* de validação (R², MAE, RMSE) e intervalo de confiança de +/-10%.
 * **🌧️ Clima e Correlação Ambiental:** Integração via API histórica com o modelo de reanálise ERA5 (**Open-Meteo**) para cruzar notificações com Precipitação (mm), Temperatura Média (°C) e Umidade Relativa (%). Permite aplicar uma defasagem temporal (*lag*) de até 4 meses para analisar estatisticamente o ciclo biológico do mosquito *Aedes aegypti*.
 
 ---
@@ -45,6 +45,7 @@ Para que a aplicação rode localmente, certifique-se de que a estrutura de dado
 ├── requirements.txt        # Dependências do projeto
 └── dados/
     ├── maparecife.geojson  # Malha geográfica dos bairros de Recife
+    ├── clima_recife.csv    # Histórico de variáveis meteorológicas (Open-Meteo)
     ├── dados_2021.csv      # Microdados SINAN 2021 (separador ';')
     ├── dados_2022.csv      # Microdados SINAN 2022 (separador ';')
     ├── dados_2023.csv      # Microdados SINAN 2023 (separador ';')
