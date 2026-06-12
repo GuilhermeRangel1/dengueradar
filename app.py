@@ -1035,28 +1035,46 @@ if carregado_com_sucesso and not df_todos.empty:
             )
             st.plotly_chart(fig_individual, use_container_width=True)
 
-        with col_insights:
+    with col_insights:
             casos_bairro = df_aba2[df_aba2['NM_BAIRRO'] == escolha].shape[0]
             risco_atual = row_score['Risco']
             pct_graves = row_score['Graves (%)']
             tendencia = row_score['Tendência']
             anomalia = row_score['Anomalia (σ)']
 
-            fator_gravidade = 1.5 if pct_graves > 5.0 else 1.0
-            agentes_necessarios = max(2, int((casos_bairro / 15) * fator_gravidade))
+            if risco_atual == 'Crítico':
+                agentes_necessarios = min(12, max(8, int(np.sqrt(casos_bairro) / 1.5)))
+            elif risco_atual == 'Alto':
+                agentes_necessarios = min(8, max(5, int(np.sqrt(casos_bairro) / 2)))
+            elif risco_atual == 'Moderado':
+                agentes_necessarios = min(4, max(3, int(np.sqrt(casos_bairro) / 3)))
+            else:
+                agentes_necessarios = 2 
 
             if risco_atual in ['Crítico', 'Alto']:
-                st.error(f"**🚨 Risco de Colapso (UBS):**\nA taxa de gravidade clínica de **{pct_graves}%** em {escolha} exige alerta vermelho. Necessário reforço intensivo de leitos de retaguarda e insumos venosos.")
-                st.error(f"**🔥 Força-Tarefa (Operacional):**\nO modelo exige bloqueio de transmissão urgente. Deslocar **~{agentes_necessarios} agentes** para varredura e aplicação de fumacê.")
-                st.error(f"**⚠️ Fator Ambiental Severo:**\nAnomalia grave de **{anomalia} desvios padrões** detectada. Acionar a Emlurb para desobstrução imediata de canais e remoção de pontos crônicos de lixo.")
+                st.error(f"**🚨 Risco de Colapso (Atenção Básica):**\nO volume atual de notificações em {escolha} exige acionamento do protocolo de contingência. A proporção de quadros clínicos severos (com alarme ou graves) está em **{pct_graves}%**. Recomenda-se reforço imediato de leitos de observação e insumos de hidratação venosa nas unidades da região.")
+                
+                st.error(f"**🔥 Força-Tarefa (Controle Vetorial):**\nA situação exige bloqueio de transmissão urgente. Sugestão: deslocar até **{agentes_necessarios} agentes** para realizar varredura intensiva e priorizar a aplicação de fumacê espacial (UBV) num raio de 300m dos focos confirmados.")
+                
+                anomalia_txt = f"(alerta de +{anomalia} desvios padrões)" if anomalia > 1.5 else ""
+                st.error(f"**⚠️ Alerta Ambiental e Infraestrutura:**\nA curva de contágio está significativamente descolada do padrão histórico esperado para o bairro {anomalia_txt}. Acionar a Emlurb para mapeamento emergencial, desobstrução de canais de drenagem e remoção de lixo irregular.")
+
             elif risco_atual == 'Moderado':
-                st.warning(f"**🏥 Atenção Primária (UBS):**\nO crescimento estrutural de **+{tendencia:.1f} casos/ano** aponta para gargalos futuros na triagem de {escolha}. Garantir estoque preventivo de hidratação.")
-                st.warning(f"**🚶‍♂️ Bloqueio Focal (Operacional):**\nRecomendado o direcionamento de **~{agentes_necessarios} agentes** para ações de conscientização e eliminação de criadouros.")
-                st.warning(f"**🌧️ Risco Ambiental Preventivo:**\nInspecionar áreas com histórico de alagamento e terrenos baldios em {escolha} para evitar a transição deste bairro para o Nível Alto.")
+                dinamica = "O viés de crescimento" if tendencia > 0 else "A trajetória atual"
+                sinal_t = "+" if tendencia > 0 else ""
+                
+                st.warning(f"**🏥 Gargalo Primário (UBS):**\n{dinamica} de **{sinal_t}{tendencia:.1f} casos/ano** acende um alerta amarelo para a triagem em {escolha}. A gestão deve garantir estoques preventivos de Soro de Reidratação Oral (SRO) e monitorar o tempo de espera nos postos de saúde.")
+                
+                st.warning(f"**🚶‍♂️ Bloqueio Focal (Agentes de Endemias):**\nCenário requer reforço territorial de nível intermediário. Empregar **~{agentes_necessarios} agentes** para mutirões focados na eliminação de criadouros mecânicos (pneus, caixas d'água destampadas) e aplicação de larvicida biológico.")
+                
+                st.warning(f"**🌧️ Risco Ambiental Preventivo:**\nDirecionar equipes de zeladoria urbana para inspecionar pontos crônicos de alagamento e terrenos baldios mapeados em {escolha}, visando cortar o ciclo do vetor antes que o bairro entre em Risco Alto.")
+
             else:
-                st.success(f"**✅ Estabilidade (UBS):**\nO fluxo na rede de atenção básica de {escolha} encontra-se dentro da normalidade. A gravidade atual ({pct_graves}%) permite atendimentos de rotina.")
-                st.success(f"**🧹 Patrulha de Rotina (Operacional):**\nO volume atual demanda apenas patrulhamento padrão com **~{agentes_necessarios} agentes** da vigilância ambiental.")
-                st.success(f"**🌱 Ambiente Controlado:**\nCenário favorável. Recomenda-se apenas a manutenção de campanhas educativas focadas em depósitos de água.")
+                st.success(f"**✅ Estabilidade Clínica (Rede de Saúde):**\nO fluxo epidemiológico em {escolha} encontra-se estabilizado. A taxa atual de gravidade (**{pct_graves}%**) sugere que a rede consegue absorver a demanda e manter os atendimentos de rotina sem sobrecarga.")
+                
+                st.success(f"**🧹 Cobertura de Rotina (Vigilância Ambiental):**\nO volume de casos é compatível com o controle endêmico padrão. Manter o ciclo de visitas domiciliares de rotina com **~{agentes_necessarios} agentes** designados para a microárea.")
+                
+                st.success(f"**🌱 Ambiente Controlado:**\nSem detecção de anomalias estatísticas no momento. A estratégia recomendada é a manutenção de campanhas contínuas em escolas e redes sociais orientando a população sobre o acúmulo intradomiciliar de água.")
 
     with aba_previsao:
         st.markdown("""
