@@ -727,8 +727,6 @@ with st.spinner('Sincronizando microdados e mapas locais...'):
 if carregado_com_sucesso and not df_todos.empty:
 
     todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
-    if 'bairro_alvo' not in st.session_state:
-        st.session_state.bairro_alvo = todos_bairros[0] if todos_bairros else None
 
     df_2025_global = df_todos[df_todos['ANO'] == 2025].copy()
     total_casos_global = len(df_2025_global)
@@ -893,6 +891,7 @@ if carregado_com_sucesso and not df_todos.empty:
         st.divider()
 
         col_mapa, col_rank = st.columns([1.6, 1])
+        bairro_clicado = None
 
         with col_mapa:
             st.markdown(f"**Score de Risco por Bairro ({ano_selecionado} - Clique para detalhar)**")
@@ -915,22 +914,6 @@ if carregado_com_sucesso and not df_todos.empty:
                         'Risco': False,
                     },
                 )
-
-                if st.session_state.bairro_alvo and st.session_state.bairro_alvo in todos_bairros:
-                    feature_alvo = [f for f in geojson_bairros['features'] if f['properties']['EBAIRRNOME'] == st.session_state.bairro_alvo]
-                    if feature_alvo:
-                        geojson_foco = {"type": "FeatureCollection", "features": feature_alvo}
-                        fig_mapa.add_trace(go.Choroplethmapbox(
-                            geojson=geojson_foco,
-                            locations=[st.session_state.bairro_alvo],
-                            z=[1],
-                            colorscale=[[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],
-                            marker_line_width=4,
-                            marker_line_color='#ffffff',
-                            showscale=False,
-                            hoverinfo='skip'
-                        ))
-
                 fig_mapa.update_layout(
                     margin={"r": 0, "t": 0, "l": 0, "b": 0},
                     paper_bgcolor='rgba(0,0,0,0)'
@@ -940,15 +923,12 @@ if carregado_com_sucesso and not df_todos.empty:
                     fig_mapa,
                     use_container_width=True,
                     on_select="rerun",
-                    selection_mode="points"
+                    selection_mode="points",
+                    key="mapa_bairros",
                 )
 
                 if mapa_evento and len(mapa_evento.selection.points) > 0:
-                    clicado = mapa_evento.selection.points[0]["location"]
-                    if clicado != st.session_state.bairro_alvo:
-                        st.session_state.bairro_alvo = clicado
-                        st.rerun()
-
+                    bairro_clicado = mapa_evento.selection.points[0]["location"]
             else:
                 st.warning("Arquivo 'maparecife.geojson' não encontrado na pasta dados.")
 
@@ -988,15 +968,16 @@ if carregado_com_sucesso and not df_todos.empty:
 
         col_selecao_bairro, _ = st.columns([1, 3])
         with col_selecao_bairro:
-            idx_seguro = todos_bairros.index(st.session_state.bairro_alvo) if st.session_state.bairro_alvo in todos_bairros else 0
+            index_padrao = 0
+            if bairro_clicado and bairro_clicado in todos_bairros:
+                index_padrao = todos_bairros.index(bairro_clicado)
+                st.success(f"📍 Filtro ativo por clique no mapa: **{bairro_clicado}**")
+
             escolha = st.selectbox(
-                "Selecione um bairro (ou clique diretamente no mapa acima):", 
-                todos_bairros, 
-                index=idx_seguro
+                "Selecione um bairro (ou clique diretamente no mapa acima):",
+                todos_bairros,
+                index=index_padrao,
             )
-            if escolha != st.session_state.bairro_alvo:
-                st.session_state.bairro_alvo = escolha
-                st.rerun()
 
         row_score = df_score_aba2[df_score_aba2['Bairro'] == escolha].iloc[0]
         tendencia_bairro = row_score['Tendência']
