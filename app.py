@@ -879,6 +879,54 @@ with st.spinner('Sincronizando microdados e mapas locais...'):
 if carregado_com_sucesso and not df_todos.empty:
 
     todos_bairros = sorted(df_todos['NM_BAIRRO'].unique())
+    anos_disponiveis = sorted(df_todos['ANO'].dropna().unique().tolist(), reverse=True)
+    opcoes_ano_global = ["Todos os Anos"] + anos_disponiveis
+    opcoes_bairro_global = ["Recife — Total"] + todos_bairros
+    opcoes_classificacao = ["Todas as classificações"] + list(_MAPA_CLASSI.values())
+
+    st.markdown("""
+    <div style="margin: 0.4rem 0 1rem;">
+        <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;
+                  letter-spacing:0.1em;color:#56d364;margin:0 0 0.35rem;">
+            Filtros Globais
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_filtro_ano, col_filtro_bairro, col_filtro_classe = st.columns([1, 1.45, 1.25])
+    with col_filtro_ano:
+        filtro_ano_global = st.selectbox(
+            "Ano de análise",
+            opcoes_ano_global,
+            index=opcoes_ano_global.index(2025) if 2025 in opcoes_ano_global else 0,
+            key="filtro_global_ano",
+        )
+    with col_filtro_bairro:
+        filtro_bairro_global = st.selectbox(
+            "Bairro foco",
+            opcoes_bairro_global,
+            index=0,
+            key="filtro_global_bairro",
+        )
+    with col_filtro_classe:
+        filtro_classe_global = st.selectbox(
+            "Classificação",
+            opcoes_classificacao,
+            index=0,
+            key="filtro_global_classificacao",
+        )
+
+    df_global = df_todos.copy()
+    if filtro_ano_global != "Todos os Anos":
+        df_global = df_global[df_global['ANO'] == int(filtro_ano_global)]
+    if filtro_bairro_global != "Recife — Total":
+        df_global = df_global[df_global['NM_BAIRRO'] == filtro_bairro_global]
+    if filtro_classe_global != "Todas as classificações":
+        codigos_classe = [codigo for codigo, nome in _MAPA_CLASSI.items() if nome == filtro_classe_global]
+        df_global = df_global[pd.to_numeric(df_global['CLASSI_FIN'], errors='coerce').isin(codigos_classe)]
+
+    escopo_global_prev = filtro_bairro_global
+    ano_analise_global = filtro_ano_global
 
     df_2025_global = df_todos[df_todos['ANO'] == 2025].copy()
     total_casos_global = len(df_2025_global)
@@ -911,15 +959,28 @@ if carregado_com_sucesso and not df_todos.empty:
         </div>
         """, unsafe_allow_html=True)
 
-        resumo_2025 = calcular_resumo_ano(df_todos)
-        delta_2025 = resumo_2025.get('delta_casos')
-        delta_txt = None if delta_2025 is None else f"{delta_2025:+.1f}% vs. 2024 no mesmo período"
+        total_filtrado = len(df_global)
+        bairro_critico_filtrado = (
+            df_global['NM_BAIRRO'].value_counts().index[0]
+            if not df_global.empty and 'NM_BAIRRO' in df_global.columns
+            else "N/D"
+        )
+        graves_filtrado = pd.to_numeric(df_global.get('CLASSI_FIN'), errors='coerce').isin([11, 12])
+        pct_graves_filtrado = float(graves_filtrado.mean() * 100) if total_filtrado else 0.0
+        bairros_filtrados = int(df_global['NM_BAIRRO'].nunique()) if total_filtrado else 0
+        ultima_data_filtrada = df_global['DT_NOTIFIC'].max() if total_filtrado else pd.NaT
+        ultima_data_txt = ultima_data_filtrada.strftime('%d/%m/%Y') if pd.notna(ultima_data_filtrada) else "N/D"
+        delta_txt = None
+        if filtro_ano_global == 2025 and filtro_bairro_global == "Recife — Total" and filtro_classe_global == "Todas as classificações":
+            resumo_2025 = calcular_resumo_ano(df_todos)
+            delta_2025 = resumo_2025.get('delta_casos')
+            delta_txt = None if delta_2025 is None else f"{delta_2025:+.1f}% vs. 2024 no mesmo período"
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Notificações em 2025", f"{resumo_2025.get('casos_atual', total_casos_global):,}", delta_txt)
-        col2.metric("Epicentro Atual", bairro_critico_global.title() if bairro_critico_global != "N/D" else "N/D")
-        col3.metric("Bairros com Casos", f"{resumo_2025.get('bairros_com_casos', 0)}")
-        col4.metric("Casos com Alarme/Graves", f"{resumo_2025.get('pct_graves', 0):.1f}%", f"Atualizado em {resumo_2025.get('ultima_data', 'N/D')}")
+        col1.metric("Notificações no filtro", f"{total_filtrado:,}", delta_txt)
+        col2.metric("Maior concentração", bairro_critico_filtrado.title() if bairro_critico_filtrado != "N/D" else "N/D")
+        col3.metric("Bairros com Casos", f"{bairros_filtrados}")
+        col4.metric("Casos com Alarme/Graves", f"{pct_graves_filtrado:.1f}%", f"Atualizado em {ultima_data_txt}")
 
         st.divider()
 
@@ -943,9 +1004,9 @@ if carregado_com_sucesso and not df_todos.empty:
             )
 
         if modo_hist == "Semana Epidemiológica":
-            semana_valida = df_todos['Semana_Epi'].notna() & (df_todos['Semana_Epi'] >= 1) & (df_todos['Semana_Epi'] <= 52)
+            semana_valida = df_global['Semana_Epi'].notna() & (df_global['Semana_Epi'] >= 1) & (df_global['Semana_Epi'] <= 52)
             casos_historico = (
-                df_todos[semana_valida]
+                df_global[semana_valida]
                 .groupby(['ANO', 'Semana_Epi'])
                 .size()
                 .reset_index(name='Casos')
@@ -972,7 +1033,7 @@ if carregado_com_sucesso and not df_todos.empty:
         else:
             _MESES = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun',
                       7: 'Jul', 8: 'Ago', 9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'}
-            df_com_data = df_todos[df_todos['DT_NOTIFIC'].notna()].copy()
+            df_com_data = df_global[df_global['DT_NOTIFIC'].notna()].copy()
             df_com_data['Mes'] = df_com_data['DT_NOTIFIC'].dt.month
             casos_historico = (
                 df_com_data.groupby(['ANO', 'Mes'])
@@ -1011,14 +1072,7 @@ if carregado_com_sucesso and not df_todos.empty:
         st.plotly_chart(fig_area, use_container_width=True)
 
     with aba_analitica:
-        col_filtro_aba2, _ = st.columns([1, 3])
-        with col_filtro_aba2:
-            ano_selecionado = st.selectbox(
-                "Selecione o Ano de Análise:",
-                ["Todos os Anos", 2025, 2024, 2023, 2022, 2021],
-                index=1,
-                key="filtro_ano_mapa"
-            )
+        ano_selecionado = ano_analise_global
 
         df_score_aba2 = calcular_score_risco_dinamico(df_todos, ano_selecionado)
 
@@ -1026,6 +1080,9 @@ if carregado_com_sucesso and not df_todos.empty:
             df_aba2 = df_todos.copy()
         else:
             df_aba2 = df_todos[df_todos['ANO'] == int(ano_selecionado)].copy()
+        if filtro_classe_global != "Todas as classificações":
+            codigos_classe = [codigo for codigo, nome in _MAPA_CLASSI.items() if nome == filtro_classe_global]
+            df_aba2 = df_aba2[pd.to_numeric(df_aba2['CLASSI_FIN'], errors='coerce').isin(codigos_classe)]
 
         st.markdown(f"""
         <div style="margin-bottom:1rem;">
@@ -1140,6 +1197,8 @@ if carregado_com_sucesso and not df_todos.empty:
             if bairro_clicado and bairro_clicado in todos_bairros:
                 index_padrao = todos_bairros.index(bairro_clicado)
                 st.success(f"📍 Filtro ativo por clique no mapa: **{bairro_clicado}**")
+            elif filtro_bairro_global != "Recife — Total" and filtro_bairro_global in todos_bairros:
+                index_padrao = todos_bairros.index(filtro_bairro_global)
 
             escolha = st.selectbox(
                 "Selecione um bairro (ou clique diretamente no mapa acima):",
@@ -1243,10 +1302,8 @@ if carregado_com_sucesso and not df_todos.empty:
         </div>
         """, unsafe_allow_html=True)
 
-        col_ctrl, _ = st.columns([1, 3])
-        with col_ctrl:
-            opcoes_escopo = ["Recife — Total"] + sorted(df_todos['NM_BAIRRO'].dropna().unique().tolist())
-            escopo_prev = st.selectbox("Escopo geográfico:", opcoes_escopo, key="sel_prev_escopo")
+        escopo_prev = escopo_global_prev
+        st.caption(f"Escopo definido pelos filtros globais: {escopo_prev}")
 
         serie = preparar_serie_mensal(df_todos, escopo_prev)
 
@@ -1406,7 +1463,7 @@ if carregado_com_sucesso and not df_todos.empty:
             )
         else:
             df_clima_mensal = abrir_clima_mensal(df_clima)
-            serie_dengue = preparar_serie_mensal(df_todos, "Recife — Total")
+            serie_dengue = preparar_serie_mensal(df_todos, escopo_global_prev)
 
             df_merged_base = pd.merge(
                 serie_dengue[['Ano_Mes', 'Casos']],
@@ -1460,7 +1517,8 @@ if carregado_com_sucesso and not df_todos.empty:
             st.divider()
 
             lag_label = f"{lag_meses} {'mês' if lag_meses == 1 else 'meses'}" if lag_meses > 0 else "sem defasagem"
-            st.markdown(f"**Casos Mensais vs. Precipitação Acumulada (defasagem: {lag_label})**")
+            escopo_clima_label = "Recife" if escopo_global_prev == "Recife — Total" else escopo_global_prev.title()
+            st.markdown(f"**Casos Mensais vs. Precipitação Acumulada — {escopo_clima_label} (defasagem: {lag_label})**")
 
             fig_dual = go.Figure()
             fig_dual.add_trace(go.Bar(
