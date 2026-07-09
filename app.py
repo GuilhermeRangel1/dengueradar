@@ -26,7 +26,7 @@ custom_css = """
     section[data-testid="stSidebar"],
     div[data-testid="stAppViewContainer"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        background-color: #0d1117 !important;
+        background-color: #090d12 !important;
         color: #e6edf3 !important;
     }
 
@@ -44,11 +44,11 @@ custom_css = """
     }
 
     .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 4rem !important;
-        padding-right: 4rem !important;
-        max-width: 100% !important;
+        padding-top: 1.2rem !important;
+        padding-bottom: 2.5rem !important;
+        padding-left: clamp(1rem, 4vw, 4.5rem) !important;
+        padding-right: clamp(1rem, 4vw, 4.5rem) !important;
+        max-width: 1480px !important;
     }
 
     div[data-testid="stAppViewContainer"] > section.main {
@@ -58,15 +58,15 @@ custom_css = """
     div[data-testid="stVerticalBlock"] > div[data-testid="element-container"],
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"],
     div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
-        padding-left: max(1.5rem, 2vw);
-        padding-right: max(1.5rem, 2vw);
+        padding-left: clamp(0rem, 1vw, 1rem);
+        padding-right: clamp(0rem, 1vw, 1rem);
     }
 
     h1 {
         font-size: 1.75rem !important;
         font-weight: 700 !important;
         color: #f0f6fc !important;
-        letter-spacing: -0.02em !important;
+        letter-spacing: 0 !important;
         line-height: 1.25 !important;
         margin: 0 0 0.25rem !important;
     }
@@ -74,7 +74,7 @@ custom_css = """
         font-size: 1.25rem !important;
         font-weight: 600 !important;
         color: #f0f6fc !important;
-        letter-spacing: -0.01em !important;
+        letter-spacing: 0 !important;
         margin: 1.75rem 0 0.75rem !important;
     }
     h3 {
@@ -98,30 +98,37 @@ custom_css = """
 
     hr {
         border: none !important;
-        border-top: 1px solid #21262d !important;
-        margin: 1.5rem 0 !important;
+        border-top: 1px solid rgba(139, 148, 158, 0.16) !important;
+        margin: 1.35rem 0 !important;
     }
 
     div[data-testid="metric-container"] {
-        background: #161b22 !important;
-        border: 1px solid #21262d !important;
-        border-radius: 10px !important;
-        padding: 1.25rem 1.5rem !important;
+        background:
+            linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015)),
+            #111821 !important;
+        border: 1px solid rgba(139, 148, 158, 0.18) !important;
+        border-radius: 8px !important;
+        padding: 1.15rem 1.25rem !important;
         position: relative !important;
         overflow: hidden !important;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        min-height: 126px !important;
+        box-shadow: 0 14px 36px rgba(0,0,0,0.18) !important;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
     }
     div[data-testid="metric-container"]:hover {
-        border-color: #30363d !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+        transform: translateY(-2px);
+        border-color: rgba(63,185,80,0.38) !important;
+        box-shadow: 0 18px 44px rgba(0,0,0,0.28) !important;
     }
     div[data-testid="metric-container"]::before {
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, #3fb950, #238636);
-        opacity: 0;
+        width: 3px;
+        height: 100%;
+        right: auto;
+        background: linear-gradient(180deg, #3fb950, #388bfd);
+        opacity: 0.85;
         transition: opacity 0.2s;
     }
     div[data-testid="metric-container"]:hover::before { opacity: 1; }
@@ -137,7 +144,7 @@ custom_css = """
     }
     div[data-testid="stMetricValue"] {
         font-family: 'JetBrains Mono', monospace !important;
-        font-size: 1.6rem !important;
+        font-size: 1.55rem !important;
         font-weight: 500 !important;
         color: #f0f6fc !important;
         line-height: 1.2 !important;
@@ -152,37 +159,39 @@ custom_css = """
         margin-top: 0 !important;
     }
     .stTabs [data-baseweb="tab-list"] {
-        background: transparent !important;
-        border-bottom: 1px solid #21262d !important;
-        gap: 0 !important;
-        padding: 0 max(1.5rem, 2vw) !important;
+        background: rgba(13, 17, 23, 0.72) !important;
+        border: 1px solid rgba(139, 148, 158, 0.14) !important;
+        border-radius: 8px !important;
+        gap: 0.25rem !important;
+        padding: 0.35rem !important;
+        backdrop-filter: blur(14px);
     }
     .stTabs [data-baseweb="tab"] {
         background: transparent !important;
         border: none !important;
-        border-bottom: 2px solid transparent !important;
-        border-radius: 0 !important;
+        border-radius: 6px !important;
         color: #6e7681 !important;
         font-size: 0.875rem !important;
         font-weight: 500 !important;
-        padding: 0.75rem 1.25rem !important;
+        padding: 0.65rem 1rem !important;
         margin-right: 0 !important;
-        transition: color 0.15s ease, border-color 0.15s ease !important;
+        transition: color 0.15s ease, background 0.15s ease !important;
     }
     .stTabs [data-baseweb="tab"]:hover {
         color: #c9d1d9 !important;
     }
     .stTabs [aria-selected="true"] {
         color: #f0f6fc !important;
-        border-bottom: 2px solid #3fb950 !important;
+        background: #161f2b !important;
+        box-shadow: inset 0 0 0 1px rgba(139, 148, 158, 0.12) !important;
     }
     div[data-testid="stTabContent"] {
-        padding: 1.5rem max(1.5rem, 2vw) !important;
+        padding: 1.65rem 0 0 !important;
     }
 
     div[data-baseweb="select"] > div {
-        background: #0d1117 !important;
-        border: 1px solid #30363d !important;
+        background: #111821 !important;
+        border: 1px solid rgba(139, 148, 158, 0.2) !important;
         border-radius: 6px !important;
         color: #e6edf3 !important;
         font-size: 0.875rem !important;
@@ -241,10 +250,10 @@ custom_css = """
     div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex;
         flex-direction: row;
-        background: #0d1117;
+        background: #111821;
         padding: 4px;
         border-radius: 8px;
-        border: 1px solid #30363d;
+        border: 1px solid rgba(139, 148, 158, 0.18);
         width: fit-content;
         gap: 0;
     }
@@ -309,12 +318,12 @@ custom_css = """
         color: #79c0ff !important;
     }
     div[data-testid="stAlert"] {
-        background-color: #161b22 !important;
+        background-color: #111821 !important;
     }
 
     details[data-testid="stExpander"] {
-        background: #161b22 !important;
-        border: 1px solid #21262d !important;
+        background: #111821 !important;
+        border: 1px solid rgba(139, 148, 158, 0.16) !important;
         border-radius: 8px !important;
         overflow: hidden !important;
     }
@@ -368,6 +377,94 @@ custom_css = """
         font-weight: 600 !important;
     }
 
+    .dr-hero {
+        background:
+            linear-gradient(135deg, rgba(35, 134, 54, 0.14), rgba(56, 139, 253, 0.08) 42%, rgba(248, 81, 73, 0.08)),
+            #0f1721;
+        border: 1px solid rgba(139, 148, 158, 0.16);
+        border-radius: 8px;
+        padding: clamp(1.2rem, 2vw, 1.9rem);
+        margin-bottom: 1.25rem;
+        box-shadow: 0 22px 55px rgba(0,0,0,0.22);
+        position: relative;
+        overflow: hidden;
+    }
+    .dr-hero::after {
+        content: '';
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(63,185,80,0.7), rgba(56,139,253,0.7), transparent);
+    }
+    .dr-kicker {
+        color: #56d364 !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.1em !important;
+        line-height: 1.2 !important;
+        margin: 0 0 0.45rem !important;
+        text-transform: uppercase;
+    }
+    .dr-hero-title {
+        color: #f0f6fc !important;
+        font-size: 2.15rem !important;
+        font-weight: 750 !important;
+        letter-spacing: 0 !important;
+        line-height: 1.08 !important;
+        margin: 0 0 0.65rem !important;
+    }
+    .dr-hero-copy {
+        color: #aeb8c4 !important;
+        font-size: 0.95rem !important;
+        line-height: 1.65 !important;
+        max-width: 780px;
+        margin: 0 !important;
+    }
+    .dr-hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 1.25rem;
+    }
+    .dr-status-stack {
+        display: grid;
+        gap: 0.5rem;
+        min-width: 210px;
+    }
+    .dr-status-pill {
+        border: 1px solid rgba(139, 148, 158, 0.17);
+        background: rgba(9, 13, 18, 0.45);
+        border-radius: 8px;
+        padding: 0.65rem 0.8rem;
+        color: #c9d1d9;
+        font-size: 0.78rem;
+        line-height: 1.3;
+    }
+    .dr-status-pill span {
+        display: block;
+        color: #6e7681;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.2rem;
+        text-transform: uppercase;
+    }
+
+    @media (max-width: 900px) {
+        .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+        .dr-hero-grid { grid-template-columns: 1fr; }
+        .dr-status-stack { grid-template-columns: 1fr 1fr; min-width: 0; }
+        .stTabs [data-baseweb="tab-list"] { overflow-x: auto; }
+        .stTabs [data-baseweb="tab"] { white-space: nowrap; }
+        .dr-hero-title { font-size: 1.8rem !important; }
+    }
+
+    @media (max-width: 640px) {
+        div[data-testid="metric-container"] { min-height: 108px !important; }
+        div[data-testid="stMetricValue"] { font-size: 1.3rem !important; }
+        .dr-status-stack { grid-template-columns: 1fr; }
+    }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
@@ -383,12 +480,13 @@ st.markdown("""
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.85rem 4rem;
-    background: #0d1117;
-    border-bottom: 1px solid #21262d;
+    padding: 0.75rem clamp(1rem, 4vw, 4.5rem);
+    background: rgba(9, 13, 18, 0.88);
+    border-bottom: 1px solid rgba(139, 148, 158, 0.14);
     position: sticky;
     top: 0;
     z-index: 999;
+    backdrop-filter: blur(16px);
 }
 .dr-navbar-brand {
     display: flex;
@@ -396,21 +494,22 @@ st.markdown("""
     gap: 0.65rem;
 }
 .dr-navbar-icon {
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, #238636, #3fb950);
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, rgba(63,185,80,0.95), rgba(56,139,253,0.78));
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1rem;
     flex-shrink: 0;
+    box-shadow: 0 10px 26px rgba(35, 134, 54, 0.24);
 }
 .dr-navbar-title {
     font-size: 1rem;
     font-weight: 700;
     color: #f0f6fc;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
     font-family: 'Inter', sans-serif;
 }
 .dr-navbar-title span { color: #3fb950; }
@@ -423,8 +522,8 @@ st.markdown("""
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    background: #161b22;
-    border: 1px solid #21262d;
+    background: rgba(17, 24, 33, 0.82);
+    border: 1px solid rgba(139, 148, 158, 0.16);
     border-radius: 9999px;
     padding: 0.22rem 0.65rem;
     font-size: 0.72rem;
@@ -442,6 +541,10 @@ st.markdown("""
 @keyframes pulseDot {
     0%,100% { opacity: 1; }
     50% { opacity: 0.35; }
+}
+@media (max-width: 720px) {
+    .dr-navbar { align-items: flex-start; gap: 0.75rem; flex-direction: column; }
+    .dr-navbar-meta { flex-wrap: wrap; }
 }
 </style>
 
@@ -469,6 +572,55 @@ _COR_RISCO = {
     'Alto':     '#f97316',
     'Crítico':  '#ef4444',
 }
+
+_PLOTLY_THEME = dict(
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    font=dict(family="Inter", color="#c9d1d9"),
+    xaxis=dict(gridcolor='#21262d', zerolinecolor='#30363d', linecolor='#30363d'),
+    yaxis=dict(gridcolor='#21262d', zerolinecolor='#30363d', linecolor='#30363d'),
+    legend=dict(font=dict(color="#c9d1d9")),
+)
+
+def aplicar_tema_plotly(fig, height=None):
+    fig.update_layout(**_PLOTLY_THEME)
+    fig.update_xaxes(showline=False, tickfont=dict(color="#8b949e"), title_font=dict(color="#8b949e"))
+    fig.update_yaxes(showline=False, tickfont=dict(color="#8b949e"), title_font=dict(color="#8b949e"))
+    if height:
+        fig.update_layout(height=height)
+    return fig
+
+def calcular_resumo_ano(df_todos, ano_atual=2025, ano_base=2024):
+    df_atual = df_todos[df_todos['ANO'] == ano_atual].copy()
+    df_base = df_todos[df_todos['ANO'] == ano_base].copy()
+    if df_atual.empty:
+        return {}
+
+    data_max = df_atual['DT_NOTIFIC'].max()
+    if pd.notna(data_max):
+        corte_base = data_max.replace(year=ano_base)
+        df_base_comp = df_base[df_base['DT_NOTIFIC'].notna() & (df_base['DT_NOTIFIC'] <= corte_base)]
+    else:
+        df_base_comp = df_base
+
+    casos_atual = len(df_atual)
+    casos_base = len(df_base_comp)
+    delta_casos = None if casos_base == 0 else ((casos_atual - casos_base) / casos_base) * 100
+
+    graves = pd.to_numeric(df_atual.get('CLASSI_FIN'), errors='coerce').isin([11, 12])
+    pct_graves = float(graves.mean() * 100) if len(df_atual) else 0.0
+
+    bairros_com_casos = int(df_atual['NM_BAIRRO'].nunique()) if 'NM_BAIRRO' in df_atual else 0
+    ultima_data = data_max.strftime('%d/%m/%Y') if pd.notna(data_max) else "N/D"
+
+    return {
+        'casos_atual': casos_atual,
+        'casos_base': casos_base,
+        'delta_casos': delta_casos,
+        'pct_graves': pct_graves,
+        'bairros_com_casos': bairros_com_casos,
+        'ultima_data': ultima_data,
+    }
 
 @st.cache_data
 def carregar_geojson_bairros():
@@ -741,24 +893,33 @@ if carregado_com_sucesso and not df_todos.empty:
 
     with aba_geral:
         st.markdown(f"""
-        <div style="margin-bottom:1.5rem;">
-            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
-                      letter-spacing:0.08em;color:#3fb950;margin:0 0 0.3rem;">
-                Cenário Epidemiológico
-            </p>
-            <h1 style="font-size:1.6rem;font-weight:700;color:#f0f6fc;
-                       margin:0 0 0.25rem;letter-spacing:-0.02em;">
-                Recife, 2025
-            </h1>
-            <p style="font-size:0.875rem;color:#6e7681;margin:0;">
-                Monitoramento em tempo real com base nos microdados SINAN.
-            </p>
+        <div class="dr-hero">
+          <div class="dr-hero-grid">
+            <div>
+              <p class="dr-kicker">Cenário Epidemiológico</p>
+              <h1 class="dr-hero-title">DengueRadar Recife</h1>
+              <p class="dr-hero-copy">
+                Painel de vigilância para acompanhar notificações, risco territorial,
+                tendência temporal e sinais ambientais associados à dengue em Recife.
+              </p>
+            </div>
+            <div class="dr-status-stack">
+              <div class="dr-status-pill"><span>Período</span>2021 a 2025</div>
+              <div class="dr-status-pill"><span>Fonte</span>SINAN Recife</div>
+            </div>
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
-        col1, col2 = st.columns(2)
-        col1.metric("Total de Notificações (2025)", f"{total_casos_global:,}")
-        col2.metric("Epicentro (Bairro com mais casos)", bairro_critico_global)
+        resumo_2025 = calcular_resumo_ano(df_todos)
+        delta_2025 = resumo_2025.get('delta_casos')
+        delta_txt = None if delta_2025 is None else f"{delta_2025:+.1f}% vs. 2024 no mesmo período"
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Notificações em 2025", f"{resumo_2025.get('casos_atual', total_casos_global):,}", delta_txt)
+        col2.metric("Epicentro Atual", bairro_critico_global.title() if bairro_critico_global != "N/D" else "N/D")
+        col3.metric("Bairros com Casos", f"{resumo_2025.get('bairros_com_casos', 0)}")
+        col4.metric("Casos com Alarme/Graves", f"{resumo_2025.get('pct_graves', 0):.1f}%", f"Atualizado em {resumo_2025.get('ultima_data', 'N/D')}")
 
         st.divider()
 
@@ -768,7 +929,7 @@ if carregado_com_sucesso and not df_todos.empty:
             <div style="padding-top:0.5rem">
                 <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
                           letter-spacing:0.08em;color:#6e7681;margin:0 0 0.2rem;">Série Histórica</p>
-                <h2 style="font-size:1.1rem;font-weight:600;color:#f0f6fc;margin:0;letter-spacing:-0.01em;">
+                <h2 style="font-size:1.1rem;font-weight:600;color:#f0f6fc;margin:0;letter-spacing:0;">
                     Casos de Dengue · 2021–2025
                 </h2>
             </div>
@@ -822,7 +983,7 @@ if carregado_com_sucesso and not df_todos.empty:
             casos_historico['ANO'] = casos_historico['ANO'].astype(str)
             casos_historico = casos_historico.sort_values(['ANO', 'Mes'])
 
-            fig_area = px.area(
+            fig_area = px.line(
                 casos_historico,
                 x='Mês', y='Casos', color='ANO',
                 category_orders={'Mês': list(_MESES.values())},
@@ -830,17 +991,23 @@ if carregado_com_sucesso and not df_todos.empty:
                 color_discrete_sequence=px.colors.qualitative.Set2,
                 template="plotly_white"
             )
-            fig_area.update_traces(line_shape='spline', mode='lines+markers', marker=dict(size=4))
+            fig_area.update_traces(
+                line_shape='linear',
+                mode='lines+markers',
+                line=dict(width=3),
+                marker=dict(size=5, line=dict(width=0)),
+            )
             fig_area.update_layout(
-                margin=dict(t=10),
+                margin=dict(t=28),
                 xaxis=dict(showgrid=False),
                 yaxis=dict(showgrid=True, gridcolor='#f1f5f9'),
-                legend=dict(title='Ano', orientation='h', y=1.05),
+                legend=dict(title=None, orientation='h', y=1.12, x=0),
                 hovermode="x unified",
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
 
+        aplicar_tema_plotly(fig_area)
         st.plotly_chart(fig_area, use_container_width=True)
 
     with aba_analitica:
@@ -866,7 +1033,7 @@ if carregado_com_sucesso and not df_todos.empty:
                       letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
                 Inteligência Geográfica
             </p>
-            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0;letter-spacing:-0.02em;">
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0;letter-spacing:0;">
                 Central de Alertas — {ano_selecionado}
             </h1>
         </div>
@@ -951,6 +1118,7 @@ if carregado_com_sucesso and not df_todos.empty:
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
+            aplicar_tema_plotly(fig_rank, height=400)
             st.plotly_chart(fig_rank, use_container_width=True)
 
         st.divider()
@@ -960,7 +1128,7 @@ if carregado_com_sucesso and not df_todos.empty:
                       letter-spacing:0.08em;color:#6e7681;margin:0 0 0.2rem;">
                 Por Localidade
             </p>
-            <h2 style="font-size:1.1rem;font-weight:600;color:#f0f6fc;margin:0;letter-spacing:-0.01em;">
+                <h2 style="font-size:1.1rem;font-weight:600;color:#f0f6fc;margin:0;letter-spacing:0;">
                 Detalhamento Técnico e Insights de Gestão
             </h2>
         </div>
@@ -1014,9 +1182,10 @@ if carregado_com_sucesso and not df_todos.empty:
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
+            aplicar_tema_plotly(fig_individual, height=300)
             st.plotly_chart(fig_individual, use_container_width=True)
 
-    with col_insights:
+        with col_insights:
             casos_bairro = df_aba2[df_aba2['NM_BAIRRO'] == escolha].shape[0]
             risco_atual = row_score['Risco']
             pct_graves = row_score['Graves (%)']
@@ -1064,7 +1233,7 @@ if carregado_com_sucesso and not df_todos.empty:
                       letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
                 Modelagem Preditiva
             </p>
-            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:-0.02em;">
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:0;">
                 Previsão de Casos
             </h1>
             <p style="font-size:0.8rem;color:#6e7681;margin:0;">
@@ -1142,6 +1311,7 @@ if carregado_com_sucesso and not df_todos.empty:
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
+            aplicar_tema_plotly(fig_prev, height=420)
             st.plotly_chart(fig_prev, use_container_width=True)
 
             with st.expander("📊 Ver backtest: modelo vs. real em 2024"):
@@ -1183,6 +1353,7 @@ if carregado_com_sucesso and not df_todos.empty:
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)'
                     )
+                    aplicar_tema_plotly(fig_bt, height=300)
                     st.plotly_chart(fig_bt, use_container_width=True)
                 else:
                     st.info("Dados insuficientes para exibir backtest deste bairro.")
@@ -1215,7 +1386,7 @@ if carregado_com_sucesso and not df_todos.empty:
                       letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
                 Análise Ambiental
             </p>
-            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:-0.02em;">
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:0;">
                 Clima e Correlação
             </h1>
             <p style="font-size:0.8rem;color:#6e7681;margin:0;">
@@ -1323,6 +1494,7 @@ if carregado_com_sucesso and not df_todos.empty:
                 plot_bgcolor='rgba(0,0,0,0)',
                 font=dict(family="Inter")
             )
+            aplicar_tema_plotly(fig_dual, height=400)
             st.plotly_chart(fig_dual, use_container_width=True)
 
             st.divider()
@@ -1358,6 +1530,7 @@ if carregado_com_sucesso and not df_todos.empty:
                 plot_bgcolor='rgba(0,0,0,0)',
                 font=dict(family="Inter")
             )
+            aplicar_tema_plotly(fig_temp, height=350)
             st.plotly_chart(fig_temp, use_container_width=True)
 
             if corr_precip is not None:
