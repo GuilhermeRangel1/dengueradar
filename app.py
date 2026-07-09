@@ -1112,6 +1112,18 @@ if carregado_com_sucesso and not df_todos.empty:
         c_notif3.metric("🟡 Risco Moderado", f"{len(df_score_aba2[df_score_aba2['Risco'] == 'Moderado'])} Bairros")
         c_notif4.metric("🟢 Risco Baixo", f"{len(df_score_aba2[df_score_aba2['Risco'] == 'Baixo'])} Bairros")
 
+        with st.expander("Como o score de risco é calculado?"):
+            st.markdown("""
+            O score varia de **0 a 100** e combina quatro sinais epidemiológicos, todos normalizados entre os bairros analisados:
+
+            - **Carga acumulada de casos (30%)**: volume de notificações no período selecionado.
+            - **Anomalia histórica (35%)**: quanto o bairro está acima ou abaixo do próprio padrão dos anos anteriores.
+            - **Tendência temporal (20%)**: direção e intensidade do crescimento ou queda ao longo da série anual.
+            - **Severidade clínica (15%)**: proporção de casos com sinais de alarme ou dengue grave.
+
+            A classificação final é: **Baixo** abaixo de 25, **Moderado** de 25 a 49,9, **Alto** de 50 a 74,9 e **Crítico** a partir de 75.
+            """)
+
         st.divider()
 
         col_mapa, col_rank = st.columns([1.6, 1])
