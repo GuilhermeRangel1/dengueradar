@@ -983,7 +983,7 @@ if carregado_com_sucesso and not df_todos.empty:
             casos_historico['ANO'] = casos_historico['ANO'].astype(str)
             casos_historico = casos_historico.sort_values(['ANO', 'Mes'])
 
-            fig_area = px.area(
+            fig_area = px.line(
                 casos_historico,
                 x='Mês', y='Casos', color='ANO',
                 category_orders={'Mês': list(_MESES.values())},
@@ -991,12 +991,17 @@ if carregado_com_sucesso and not df_todos.empty:
                 color_discrete_sequence=px.colors.qualitative.Set2,
                 template="plotly_white"
             )
-            fig_area.update_traces(line_shape='spline', mode='lines+markers', marker=dict(size=4))
+            fig_area.update_traces(
+                line_shape='linear',
+                mode='lines+markers',
+                line=dict(width=3),
+                marker=dict(size=5, line=dict(width=0)),
+            )
             fig_area.update_layout(
-                margin=dict(t=10),
+                margin=dict(t=28),
                 xaxis=dict(showgrid=False),
                 yaxis=dict(showgrid=True, gridcolor='#f1f5f9'),
-                legend=dict(title='Ano', orientation='h', y=1.05),
+                legend=dict(title=None, orientation='h', y=1.12, x=0),
                 hovermode="x unified",
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
