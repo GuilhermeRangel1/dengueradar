@@ -1,91 +1,118 @@
-# 🦟 DengueRadar — Monitoramento Epidemiológico em Recife
+# DengueRadar - Monitoramento Epidemiológico em Recife
 
-> Projeto desenvolvido para a disciplina de **Projetos 5**.
+**Aplicação em produção:** [https://dengueradar.streamlit.app/](https://dengueradar.streamlit.app/)
 
-**🌐 Aplicação em Produção:** [https://dengueradar.streamlit.app/](https://dengueradar.streamlit.app/)  
-**📋 Organização do Time (Trello):** [https://trello.com/b/5Lbk8YrU/projeto-5](https://trello.com/b/5Lbk8YrU/projeto-5)  
-
----
-
-## 📌 Sobre o Projeto
-O **DengueRadar** é uma plataforma web para monitoramento, análise preditiva e suporte à tomada de decisão sobre o cenário epidemiológico da dengue na cidade do Recife. Utilizando os microdados oficiais do **SINAN (Sistema de Informação de Agravos de Notificação)** disponibilizados pela Prefeitura do Recife (2021–2025), a aplicação une inteligência geográfica, modelos matemáticos de sazonalidade e correlações climáticas para mapear os focos da doença e sugerir ações operacionais em tempo real.
+**Organização do time:** [Trello](https://trello.com/b/5Lbk8YrU/projeto-5)
 
 ---
 
-## 🚀 Funcionalidades Principais
+## Sobre o projeto
 
-* **🟢 Visão Geral da Cidade:** Painel consolidado com a curva de contágio municipal iterativa, alternável entre Semana Epidemiológica e Mês. Identificação automática do epicentro atual e cálculo em tempo real do total de notificações do ano vigente.
-* **📍 Central de Alertas e Inteligência Geográfica:** Mapa coroplético interativo integrado ao GeoJSON oficial de bairros do Recife. Calcula dinamicamente um **Score de Risco Algorítmico (Baixo, Moderado, Alto e Crítico)** baseado em 4 pilares: *carga acumulada, anomalia estatística (desvio padrão), tendência linear e severidade clínica* (% de casos graves).
-* **📋 Insights de Gestão Automatizados:** Painel que gera recomendações automáticas para os gestores públicos de saúde ao selecionar um bairro, divididas em:
-  * **UBS:** Alertas sobre capacidade de triagem, leitos de retaguarda e insumos venosos.
-  * **Operacional:** Dimensionamento de força-tarefa (estimativa de agentes de endemias necessários) e bloqueio focal com fumacê.
-  * **Ambiental:** Gatilhos para ações da Emlurb (limpeza de canais, remoção de pontos críticos de lixo).
-* **🔮 Modelagem Preditiva Avançada:** Regressão Linear múltipla enriquecida com componentes harmônicos sazonais (funções seno e cosseno) treinada com o histórico de 2021 a 2025 para projetar os próximos 6 meses de contágio. Inclui aba de transparência com métricas de *backtest* de validação (R², MAE, RMSE) e intervalo de confiança de +/-10%.
-* **🌧️ Clima e Correlação Ambiental:** Integração via API histórica com o modelo de reanálise ERA5 (**Open-Meteo**) para cruzar notificações com Precipitação (mm), Temperatura Média (°C) e Umidade Relativa (%). Permite aplicar uma defasagem temporal (*lag*) de até 4 meses para analisar estatisticamente o ciclo biológico do mosquito *Aedes aegypti*.
+O **DengueRadar** é uma aplicação web em Streamlit para monitoramento, análise territorial e apoio à tomada de decisão sobre dengue na cidade do Recife. O painel combina microdados do SINAN, malha geográfica dos bairros, análise de risco, previsão sazonal e correlação climática.
+
+O objetivo é transformar dados epidemiológicos em visualizações úteis para acompanhamento de casos, identificação de áreas prioritárias e apoio a ações de vigilância em saúde.
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## Funcionalidades principais
 
-* **Linguagem:** Python 3
-* **Interface Web e Dashboard:** Streamlit
-* **Manipulação e Análise de Dados:** Pandas, NumPy
-* **Visualização Científica e Mapas:** Plotly Express, Plotly Graph Objects (Choroplethmapbox)
-* **Machine Learning / Regressão:** Scikit-Learn (`LinearRegression`)
-* **Consumo de APIs / Requisições:** Requests
+- **Filtros globais:** recorte por ano, bairro foco e classificação do caso, com botão para limpar filtros.
+- **Visão geral:** métricas consolidadas e série histórica por semana epidemiológica ou mês.
+- **Mapa de risco:** mapa coroplético por bairro com destaque visual para o bairro escolhido no filtro global.
+- **Ranking de prioridade de ação:** gráfico dos bairros com maior Score de Risco, considerando score, casos, tendência e gravidade.
+- **Score de Risco:** indicador de 0 a 100 baseado em carga acumulada, anomalia histórica, tendência temporal e severidade clínica.
+- **Insights de gestão:** recomendações operacionais para UBS, agentes de endemias e ações ambientais.
+- **Previsão de casos:** regressão linear com componentes sazonais, backtest e indicador de confiabilidade.
+- **Clima e correlação:** análise de precipitação, temperatura e umidade com defasagem temporal.
+- **Sobre os dados:** aba de transparência com origem, limitações e orientação de interpretação.
 
 ---
 
-## 📂 Estrutura de Arquivos Necessária
+## Como o Score de Risco funciona
 
-Para que a aplicação rode localmente, certifique-se de que a estrutura de dados está organizada da seguinte forma:
+O score é calculado por bairro e combina quatro dimensões:
+
+- **Carga acumulada de casos (30%)**
+- **Anomalia histórica (35%)**
+- **Tendência temporal (20%)**
+- **Severidade clínica (15%)**
+
+Faixas de classificação:
+
+- **Baixo:** abaixo de 25
+- **Moderado:** de 25 a 49,9
+- **Alto:** de 50 a 74,9
+- **Crítico:** 75 ou mais
+
+---
+
+## Tecnologias
+
+- Python 3
+- Streamlit
+- Pandas e NumPy
+- Plotly Express e Plotly Graph Objects
+- Scikit-learn
+- Requests
+
+---
+
+## Estrutura do projeto
 
 ```text
-├── app.py                  # Arquivo principal do Streamlit
-├── requirements.txt        # Dependências do projeto
-└── dados/
-    ├── maparecife.geojson  # Malha geográfica dos bairros de Recife
-    ├── clima_recife.csv    # Histórico de variáveis meteorológicas (Open-Meteo)
-    ├── dados_2021.csv      # Microdados SINAN 2021 (separador ';')
-    ├── dados_2022.csv      # Microdados SINAN 2022 (separador ';')
-    ├── dados_2023.csv      # Microdados SINAN 2023 (separador ';')
-    ├── dados_2024.csv      # Microdados SINAN 2024 (separador ';')
-    └── dados_2025.csv      # Microdados SINAN 2025 (separador ',')
-
+app.py
+requirements.txt
+dados/
+  maparecife.geojson
+  clima_recife.csv
+  dados_2021.csv
+  dados_2022.csv
+  dados_2023.csv
+  dados_2024.csv
+  dados_2025.csv
 ```
+
 ---
 
-## 💻 Como rodar o projeto
+## Como rodar localmente
 
-**1. Crie e ative o ambiente virtual**
+Crie e ative um ambiente virtual:
 
 ```bash
 python -m venv venv
 ```
 
 Windows:
+
 ```bash
 venv\Scripts\activate
 ```
 
 Linux/Mac:
+
 ```bash
 source venv/bin/activate
 ```
 
-**2. Instale as dependências**
+Instale as dependências:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**3. Execute a aplicação**
+Execute a aplicação:
 
 ```bash
 streamlit run app.py
 ```
 
-A aplicação abrirá automaticamente no navegador em `http://localhost:8501`.
+A aplicação abrirá em `http://localhost:8501`.
+
+---
+
+## Observações
+
+Notificações não são necessariamente casos confirmados. Os resultados dependem da qualidade do preenchimento dos dados e da atualização dos arquivos. As previsões devem ser interpretadas como apoio à decisão, não como valores definitivos.
 
 ---
 
@@ -97,5 +124,5 @@ A aplicação abrirá automaticamente no navegador em `http://localhost:8501`.
 - Guilheme Coutinho
 - Guilherme Vinícius
 - Igor Couto
-- João Pedro ALbuquerque
+- João Pedro Albuquerque
 - William Souza

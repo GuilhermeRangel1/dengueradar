@@ -211,6 +211,21 @@ custom_css = """
         font-weight: 500 !important;
     }
 
+    div[data-testid="stButton"] > button {
+        height: 40px !important;
+        border-radius: 6px !important;
+        border: 1px solid rgba(139, 148, 158, 0.24) !important;
+        background: #111821 !important;
+        color: #aeb8c4 !important;
+        font-weight: 500 !important;
+        transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease !important;
+    }
+    div[data-testid="stButton"] > button:hover {
+        border-color: #56d364 !important;
+        color: #f0f6fc !important;
+        background: #14201b !important;
+    }
+
     [data-baseweb="popover"] [data-baseweb="menu"] {
         background: #161b22 !important;
         border: 1px solid #30363d !important;
@@ -420,35 +435,6 @@ custom_css = """
         max-width: 780px;
         margin: 0 !important;
     }
-    .dr-hero-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: end;
-        gap: 1.25rem;
-    }
-    .dr-status-stack {
-        display: grid;
-        gap: 0.5rem;
-        min-width: 210px;
-    }
-    .dr-status-pill {
-        border: 1px solid rgba(139, 148, 158, 0.17);
-        background: rgba(9, 13, 18, 0.45);
-        border-radius: 8px;
-        padding: 0.65rem 0.8rem;
-        color: #c9d1d9;
-        font-size: 0.78rem;
-        line-height: 1.3;
-    }
-    .dr-status-pill span {
-        display: block;
-        color: #6e7681;
-        font-size: 0.68rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        margin-bottom: 0.2rem;
-        text-transform: uppercase;
-    }
     .dr-reco-card {
         border: 1px solid rgba(139, 148, 158, 0.16);
         border-left: 3px solid var(--accent);
@@ -470,8 +456,6 @@ custom_css = """
 
     @media (max-width: 900px) {
         .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
-        .dr-hero-grid { grid-template-columns: 1fr; }
-        .dr-status-stack { grid-template-columns: 1fr 1fr; min-width: 0; }
         .stTabs [data-baseweb="tab-list"] { overflow-x: auto; }
         .stTabs [data-baseweb="tab"] { white-space: nowrap; }
         .dr-hero-title { font-size: 1.8rem !important; }
@@ -480,7 +464,6 @@ custom_css = """
     @media (max-width: 640px) {
         div[data-testid="metric-container"] { min-height: 108px !important; }
         div[data-testid="stMetricValue"] { font-size: 1.3rem !important; }
-        .dr-status-stack { grid-template-columns: 1fr; }
     }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -498,7 +481,7 @@ st.markdown("""
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem clamp(1rem, 4vw, 4.5rem);
+    padding: 0.75rem 0;
     background: rgba(9, 13, 18, 0.88);
     border-bottom: 1px solid rgba(139, 148, 158, 0.14);
     position: sticky;
@@ -939,7 +922,12 @@ if carregado_com_sucesso and not df_todos.empty:
             key="filtro_global_classificacao",
         )
     with col_limpar_filtros:
-        st.markdown("<div style='height:1.65rem;'></div>", unsafe_allow_html=True)
+        st.markdown("""
+        <p style="font-size:0.75rem;font-weight:500;text-transform:uppercase;
+                  letter-spacing:0.05em;margin:0 0 0.4rem;visibility:hidden;">
+            Ação
+        </p>
+        """, unsafe_allow_html=True)
         st.button(
             "Limpar filtros",
             key="btn_limpar_filtros",
@@ -963,30 +951,23 @@ if carregado_com_sucesso and not df_todos.empty:
     total_casos_global = len(df_2025_global)
     bairro_critico_global = df_2025_global['NM_BAIRRO'].value_counts().index[0] if not df_2025_global.empty else "N/D"
 
-    aba_geral, aba_analitica, aba_previsao, aba_clima = st.tabs([
+    aba_geral, aba_analitica, aba_previsao, aba_clima, aba_dados = st.tabs([
         "🟢 Visão Geral da Cidade",
         "📍 Mapa e Análise por Bairro",
         "🔮 Previsão",
         "🌧️ Clima e Correlação",
+        "ℹ️ Sobre os Dados",
     ])
 
     with aba_geral:
         st.markdown(f"""
         <div class="dr-hero">
-          <div class="dr-hero-grid">
-            <div>
-              <p class="dr-kicker">Cenário Epidemiológico</p>
-              <h1 class="dr-hero-title">DengueRadar Recife</h1>
-              <p class="dr-hero-copy">
-                Painel de vigilância para acompanhar notificações, risco territorial,
-                tendência temporal e sinais ambientais associados à dengue em Recife.
-              </p>
-            </div>
-            <div class="dr-status-stack">
-              <div class="dr-status-pill"><span>Período</span>2021 a 2025</div>
-              <div class="dr-status-pill"><span>Fonte</span>SINAN Recife</div>
-            </div>
-          </div>
+          <p class="dr-kicker">Cenário Epidemiológico</p>
+          <h1 class="dr-hero-title">DengueRadar Recife</h1>
+          <p class="dr-hero-copy">
+            Painel de vigilância para acompanhar notificações, risco territorial,
+            tendência temporal e sinais ambientais associados à dengue em Recife.
+          </p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1008,7 +989,7 @@ if carregado_com_sucesso and not df_todos.empty:
             delta_txt = None if delta_2025 is None else f"{delta_2025:+.1f}% vs. 2024 no mesmo período"
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Notificações no filtro", f"{total_filtrado:,}", delta_txt)
+        col1.metric("Notificações no recorte atual", f"{total_filtrado:,}", delta_txt)
         col2.metric("Maior concentração", bairro_critico_filtrado.title() if bairro_critico_filtrado != "N/D" else "N/D")
         col3.metric("Bairros com Casos", f"{bairros_filtrados}")
         col4.metric("Casos com Alarme/Graves", f"{pct_graves_filtrado:.1f}%", f"Atualizado em {ultima_data_txt}")
@@ -1220,26 +1201,59 @@ if carregado_com_sucesso and not df_todos.empty:
                 st.warning("Arquivo 'maparecife.geojson' não encontrado na pasta dados.")
 
         with col_rank:
-            df_bairros = df_aba2['NM_BAIRRO'].value_counts().reset_index()
-            df_bairros.columns = ['Bairro', 'Notificações']
-
-            st.markdown(f"**Top 10 Bairros — {ano_selecionado}**")
-            fig_rank = px.bar(
-                df_bairros.head(10).sort_values('Notificações', ascending=True),
-                x='Notificações', y='Bairro', orientation='h',
-                color_discrete_sequence=["#2563eb"], 
-                template="plotly_white"
+            st.markdown(f"**Prioridade de Ação — {ano_selecionado}**")
+            st.caption("Ranking ordenado pelo Score de Risco, não apenas pelo volume bruto de casos.")
+            df_prioridade = (
+                df_score_aba2
+                .sort_values(['Score', 'Casos'], ascending=[False, False])
+                .head(10)
+                .copy()
             )
-            fig_rank.update_layout(
-                margin=dict(l=0, r=0, t=10, b=0), 
+            fig_prioridade = px.bar(
+                df_prioridade.sort_values('Score', ascending=True),
+                x='Score',
+                y='Bairro',
+                orientation='h',
+                color='Risco',
+                color_discrete_map=_COR_RISCO,
+                category_orders={'Risco': ['Baixo', 'Moderado', 'Alto', 'Crítico']},
+                text='Score',
+                hover_data={
+                    'Casos': True,
+                    'Tendência': ':.1f',
+                    'Graves (%)': ':.1f',
+                    'Risco': True,
+                    'Score': ':.1f',
+                },
+                labels={
+                    'Score': 'Score de Risco',
+                    'Bairro': '',
+                    'Tendência': 'Tendência',
+                    'Graves (%)': 'Graves (%)',
+                },
+                template="plotly_white",
+            )
+            fig_prioridade.update_traces(
+                texttemplate='%{text:.1f}',
+                textposition='outside',
+                marker_line_width=0,
+                cliponaxis=False,
+            )
+            fig_prioridade.update_layout(
                 height=400,
-                xaxis=dict(showgrid=False),
+                margin=dict(l=0, r=36, t=10, b=0),
+                xaxis=dict(range=[0, max(float(df_prioridade['Score'].max()) * 1.18, 10)], showgrid=True),
                 yaxis=dict(showgrid=False),
+                legend=dict(title=None, orientation='h', y=1.08, x=0),
+                hovermode='closest',
                 paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
+                plot_bgcolor='rgba(0,0,0,0)',
             )
-            aplicar_tema_plotly(fig_rank, height=400)
-            st.plotly_chart(fig_rank, use_container_width=True)
+            aplicar_tema_plotly(fig_prioridade, height=400)
+            st.plotly_chart(
+                fig_prioridade,
+                use_container_width=True,
+            )
 
         st.divider()
         st.markdown("""
@@ -1299,7 +1313,7 @@ if carregado_com_sucesso and not df_todos.empty:
             tendencia_arredondada = int(round(tendencia_bairro))
 
             m1, m2, m3 = st.columns(3)
-            m1.metric("Score Algorítmico", f"{row_score['Score']:.1f} / 100")
+            m1.metric("Score de Risco", f"{row_score['Score']:.1f} / 100")
             m2.metric("Classificação de Risco Atual", row_score['Risco'])
             m3.metric("Projeção Temporal", f"{sinal}{tendencia_arredondada}", "Novos Casos/Ano (Tendência)")
 
@@ -1448,13 +1462,21 @@ if carregado_com_sucesso and not df_todos.empty:
             c1.metric("Meses de histórico", f"{len(serie)}")
             if resultado_bt[0] is not None:
                 r2_bt, mae_bt, rmse_bt = resultado_bt[0], resultado_bt[1], resultado_bt[2]
+                erro_relativo = mae_bt / max(float(serie['Casos'].mean()), 1.0)
+                if len(serie) >= 48 and erro_relativo <= 0.35:
+                    confiabilidade = "Alta"
+                elif len(serie) >= 24 and erro_relativo <= 0.65:
+                    confiabilidade = "Média"
+                else:
+                    confiabilidade = "Baixa"
                 c2.metric("R² — Backtest 2024", f"{max(r2_bt, 0.0):.3f}")
                 c3.metric("MAE — Backtest 2024", f"{mae_bt:.0f} casos/mês")
-                c4.metric("RMSE — Backtest 2024", f"{rmse_bt:.0f} casos/mês")
+                c4.metric("Confiabilidade", confiabilidade, f"RMSE {rmse_bt:.0f} casos/mês")
             else:
+                confiabilidade = "Baixa"
                 c2.metric("R²", "N/D")
                 c3.metric("MAE", "N/D")
-                c4.metric("RMSE", "N/D")
+                c4.metric("Confiabilidade", "Baixa", "Backtest indisponível")
 
             st.divider()
 
@@ -1739,6 +1761,51 @@ if carregado_com_sucesso and not df_todos.empty:
                     f"Variações na {nome_var} tendem a {precede} mudanças no número de "
                     f"notificações de dengue em Recife."
                 )
+
+    with aba_dados:
+        st.markdown("""
+        <div style="margin-bottom:1rem;">
+            <p style="font-size:0.72rem;font-weight:500;text-transform:uppercase;
+                      letter-spacing:0.08em;color:#3fb950;margin:0 0 0.25rem;">
+                Transparência
+            </p>
+            <h1 style="font-size:1.4rem;font-weight:700;color:#f0f6fc;margin:0 0 0.3rem;letter-spacing:0;">
+                Sobre os Dados e Indicadores
+            </h1>
+            <p style="font-size:0.8rem;color:#6e7681;margin:0;">
+                Informações para interpretar corretamente os recortes, mapas, scores e previsões do painel.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        d1, d2, d3 = st.columns(3)
+        d1.metric("Período epidemiológico", "2021–2025")
+        d2.metric("Fonte dos casos", "SINAN Recife")
+        d3.metric("Unidade territorial", "Bairros")
+
+        st.divider()
+
+        st.markdown("""
+        **Origem dos dados**
+
+        Os registros de dengue utilizados no painel vêm dos microdados oficiais do SINAN disponibilizados para Recife.
+        O arquivo geográfico usa a malha de bairros da cidade, e os dados climáticos vêm do histórico Open-Meteo/ERA5.
+
+        **Como interpretar as notificações**
+
+        Uma notificação não é necessariamente um caso confirmado. Ela representa um registro epidemiológico informado
+        no sistema de vigilância e pode incluir diferentes classificações clínicas, descartes ou registros inconclusivos.
+
+        **Como interpretar o Score de Risco**
+
+        O score combina quatro dimensões: carga acumulada de casos, anomalia histórica, tendência temporal e gravidade clínica.
+        Ele serve para priorização relativa entre bairros, não como diagnóstico absoluto da situação sanitária.
+
+        **Limitações**
+
+        Os resultados dependem da qualidade do preenchimento dos dados, da atualização dos arquivos e da existência de histórico
+        suficiente para cada bairro. Previsões devem ser lidas como apoio à decisão, não como valor definitivo.
+        """)
 
 else:
     st.info("Certifique-se de que a pasta 'dados/' contém os arquivos CSV e o GeoJSON.")
