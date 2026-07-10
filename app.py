@@ -449,6 +449,24 @@ custom_css = """
         margin-bottom: 0.2rem;
         text-transform: uppercase;
     }
+    .dr-reco-card {
+        border: 1px solid rgba(139, 148, 158, 0.16);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        background: rgba(17, 24, 33, 0.78);
+        padding: 0.78rem 0.9rem;
+        margin: 0 0 0.75rem;
+        color: #aeb8c4;
+        font-size: 0.84rem;
+        line-height: 1.55;
+    }
+    .dr-reco-card strong {
+        color: #f0f6fc !important;
+        font-size: 0.88rem;
+    }
+    .dr-reco-card.critical { --accent: #f85149; background: rgba(248, 81, 73, 0.08); }
+    .dr-reco-card.warning { --accent: #d29922; background: rgba(210, 153, 34, 0.10); }
+    .dr-reco-card.success { --accent: #3fb950; background: rgba(63, 185, 80, 0.08); }
 
     @media (max-width: 900px) {
         .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
@@ -884,6 +902,11 @@ if carregado_com_sucesso and not df_todos.empty:
     opcoes_bairro_global = ["Recife — Total"] + todos_bairros
     opcoes_classificacao = ["Todas as classificações"] + list(_MAPA_CLASSI.values())
 
+    def limpar_filtros_globais():
+        st.session_state["filtro_global_ano"] = "Todos os Anos"
+        st.session_state["filtro_global_bairro"] = "Recife — Total"
+        st.session_state["filtro_global_classificacao"] = "Todas as classificações"
+
     st.markdown("""
     <div style="margin: 0.4rem 0 1rem;">
         <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;
@@ -893,12 +916,12 @@ if carregado_com_sucesso and not df_todos.empty:
     </div>
     """, unsafe_allow_html=True)
 
-    col_filtro_ano, col_filtro_bairro, col_filtro_classe = st.columns([1, 1.45, 1.25])
+    col_filtro_ano, col_filtro_bairro, col_filtro_classe, col_limpar_filtros = st.columns([1, 1.45, 1.25, 0.75])
     with col_filtro_ano:
         filtro_ano_global = st.selectbox(
             "Ano de análise",
             opcoes_ano_global,
-            index=opcoes_ano_global.index(2025) if 2025 in opcoes_ano_global else 0,
+            index=0,
             key="filtro_global_ano",
         )
     with col_filtro_bairro:
@@ -914,6 +937,14 @@ if carregado_com_sucesso and not df_todos.empty:
             opcoes_classificacao,
             index=0,
             key="filtro_global_classificacao",
+        )
+    with col_limpar_filtros:
+        st.markdown("<div style='height:1.65rem;'></div>", unsafe_allow_html=True)
+        st.button(
+            "Limpar filtros",
+            key="btn_limpar_filtros",
+            use_container_width=True,
+            on_click=limpar_filtros_globais,
         )
 
     df_global = df_todos.copy()
@@ -1057,6 +1088,8 @@ if carregado_com_sucesso and not df_todos.empty:
                 mode='lines+markers',
                 line=dict(width=3),
                 marker=dict(size=5, line=dict(width=0)),
+                fill='tozeroy',
+                opacity=0.72,
             )
             fig_area.update_layout(
                 margin=dict(t=28),
@@ -1127,11 +1160,12 @@ if carregado_com_sucesso and not df_todos.empty:
         st.divider()
 
         col_mapa, col_rank = st.columns([1.6, 1])
-        bairro_clicado = None
+        bairro_ativo_mapa = filtro_bairro_global if filtro_bairro_global != "Recife — Total" else None
 
         with col_mapa:
-            st.markdown(f"**Score de Risco por Bairro ({ano_selecionado} - Clique para detalhar)**")
+            st.markdown(f"**Score de Risco por Bairro ({ano_selecionado})**")
             if geojson_bairros:
+                opacidade_mapa = 0.28 if bairro_ativo_mapa else 0.75
                 fig_mapa = px.choropleth_mapbox(
                     df_score_aba2, geojson=geojson_bairros,
                     locations='Bairro', featureidkey='properties.EBAIRRNOME',
@@ -1140,7 +1174,7 @@ if carregado_com_sucesso and not df_todos.empty:
                     category_orders={'Risco': ['Baixo', 'Moderado', 'Alto', 'Crítico']},
                     mapbox_style="carto-positron", zoom=10.5,
                     center={"lat": -8.058, "lon": -34.91},
-                    opacity=0.75, hover_name='Bairro',
+                    opacity=opacidade_mapa, hover_name='Bairro',
                     hover_data={
                         'Score': True,
                         'Casos': True,
@@ -1154,17 +1188,34 @@ if carregado_com_sucesso and not df_todos.empty:
                     margin={"r": 0, "t": 0, "l": 0, "b": 0},
                     paper_bgcolor='rgba(0,0,0,0)'
                 )
+                if bairro_ativo_mapa and bairro_ativo_mapa in df_score_aba2['Bairro'].values:
+                    df_bairro_destacado = df_score_aba2[df_score_aba2['Bairro'] == bairro_ativo_mapa]
+                    risco_destacado = df_bairro_destacado.iloc[0]['Risco']
+                    fig_destaque = px.choropleth_mapbox(
+                        df_bairro_destacado,
+                        geojson=geojson_bairros,
+                        locations='Bairro',
+                        featureidkey='properties.EBAIRRNOME',
+                        color_discrete_sequence=[_COR_RISCO.get(risco_destacado, '#3fb950')],
+                        mapbox_style="carto-positron",
+                        zoom=10.5,
+                        center={"lat": -8.058, "lon": -34.91},
+                        opacity=0.95,
+                        hover_name='Bairro',
+                    )
+                    fig_destaque.update_traces(
+                        marker_line_color='rgba(51,65,85,0.45)',
+                        marker_line_width=1.2,
+                        showlegend=False,
+                        hovertemplate='<b>%{location}</b><br>Bairro selecionado<extra></extra>',
+                    )
+                    fig_mapa.add_trace(fig_destaque.data[0])
 
-                mapa_evento = st.plotly_chart(
+                st.plotly_chart(
                     fig_mapa,
                     use_container_width=True,
-                    on_select="rerun",
-                    selection_mode="points",
                     key="mapa_bairros",
                 )
-
-                if mapa_evento and len(mapa_evento.selection.points) > 0:
-                    bairro_clicado = mapa_evento.selection.points[0]["location"]
             else:
                 st.warning("Arquivo 'maparecife.geojson' não encontrado na pasta dados.")
 
@@ -1203,40 +1254,84 @@ if carregado_com_sucesso and not df_todos.empty:
         </div>
         """, unsafe_allow_html=True)
 
-        col_selecao_bairro, _ = st.columns([1, 3])
-        with col_selecao_bairro:
-            index_padrao = 0
-            if bairro_clicado and bairro_clicado in todos_bairros:
-                index_padrao = todos_bairros.index(bairro_clicado)
-                st.success(f"📍 Filtro ativo por clique no mapa: **{bairro_clicado}**")
-            elif filtro_bairro_global != "Recife — Total" and filtro_bairro_global in todos_bairros:
-                index_padrao = todos_bairros.index(filtro_bairro_global)
+        opcao_geral_bairro = "Recife — visão geral"
+        escolha = bairro_ativo_mapa if bairro_ativo_mapa in todos_bairros else opcao_geral_bairro
+        if escolha == opcao_geral_bairro:
+            st.caption("Escopo atual: Recife — visão geral. Use o filtro global para detalhar um bairro.")
+        else:
+            st.success(f"📍 Localidade ativa pelo filtro global: **{escolha}**")
 
-            escolha = st.selectbox(
-                "Selecione um bairro (ou clique diretamente no mapa acima):",
-                todos_bairros,
-                index=index_padrao,
-            )
+        detalhe_geral = escolha == opcao_geral_bairro
+        if detalhe_geral:
+            historico_detalhe = df_todos.groupby('ANO').size().reset_index(name='Casos')
+            anos_hist = historico_detalhe['ANO'].values.astype(float)
+            casos_hist = historico_detalhe['Casos'].values.astype(float)
+            tendencia_detalhe = float(np.polyfit(anos_hist - anos_hist.mean(), casos_hist, 1)[0]) if len(historico_detalhe) >= 2 else 0.0
+            sinal = "+" if tendencia_detalhe > 0 else ""
+            top_risco = df_score_aba2.sort_values('Score', ascending=False).iloc[0]
 
-        row_score = df_score_aba2[df_score_aba2['Bairro'] == escolha].iloc[0]
-        tendencia_bairro = row_score['Tendência']
-        sinal = "+" if tendencia_bairro > 0 else ""
-        tendencia_arredondada = int(round(tendencia_bairro))
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Notificações no recorte", f"{len(df_aba2):,}")
+            m2.metric("Bairros monitorados", f"{df_aba2['NM_BAIRRO'].nunique()}")
+            m3.metric("Tendência municipal", f"{sinal}{int(round(tendencia_detalhe))}", "Casos/Ano")
 
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Score Algorítmico", f"{row_score['Score']:.1f} / 100")
-        m2.metric("Classificação de Risco Atual", row_score['Risco'])
-        m3.metric("Projeção Temporal", f"{sinal}{tendencia_arredondada}", "Novos Casos/Ano (Tendência)")
+            st.markdown(f"""
+            <div style="
+                background:#10243a;
+                border:1px solid rgba(121,192,255,0.20);
+                border-left:3px solid #79c0ff;
+                border-radius:8px;
+                padding:0.8rem 1rem;
+                margin:0.4rem 0 1rem;
+                color:#aeb8c4;
+                font-size:0.88rem;
+                line-height:1.55;
+            ">
+                <strong>Visão geral de Recife</strong><br>
+                Bairro com maior score no recorte: <strong>{top_risco['Bairro'].title()}</strong>
+                ({top_risco['Risco']} · {top_risco['Score']:.1f}/100). Selecione um bairro para ver recomendações operacionais específicas.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            row_score = df_score_aba2[df_score_aba2['Bairro'] == escolha].iloc[0]
+            tendencia_bairro = row_score['Tendência']
+            sinal = "+" if tendencia_bairro > 0 else ""
+            tendencia_arredondada = int(round(tendencia_bairro))
 
-        st.info(f"**ANÁLISE PREDITIVA E CONTEXTO ({escolha}):** O cálculo de regressão linear baseado na série histórica identifica um desvio de **{row_score['Anomalia (σ)']} σ** e uma taxa de gravidade clínica de **{row_score['Graves (%)']}%** dos casos.")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Score Algorítmico", f"{row_score['Score']:.1f} / 100")
+            m2.metric("Classificação de Risco Atual", row_score['Risco'])
+            m3.metric("Projeção Temporal", f"{sinal}{tendencia_arredondada}", "Novos Casos/Ano (Tendência)")
+
+            st.markdown(f"""
+            <div style="
+                background:#10243a;
+                border:1px solid rgba(121,192,255,0.20);
+                border-left:3px solid #79c0ff;
+                border-radius:8px;
+                padding:0.8rem 1rem;
+                margin:0.4rem 0 1rem;
+                color:#aeb8c4;
+                font-size:0.88rem;
+                line-height:1.55;
+            ">
+                <strong>Análise preditiva e contexto ({escolha.title()})</strong><br>
+                Desvio histórico de <strong>{row_score['Anomalia (σ)']} σ</strong> e taxa de gravidade clínica de
+                <strong>{row_score['Graves (%)']}%</strong> dos casos.
+            </div>
+            """, unsafe_allow_html=True)
 
         col_grafico, col_insights = st.columns([1.5, 1])
 
         with col_grafico:
-            historico_bairro = (
-                df_todos[df_todos['NM_BAIRRO'] == escolha]
-                .groupby('ANO').size().reset_index(name='Casos')
-            )
+            st.markdown("**Evolução anual**")
+            if detalhe_geral:
+                historico_bairro = df_todos.groupby('ANO').size().reset_index(name='Casos')
+            else:
+                historico_bairro = (
+                    df_todos[df_todos['NM_BAIRRO'] == escolha]
+                    .groupby('ANO').size().reset_index(name='Casos')
+                )
             historico_bairro['ANO'] = historico_bairro['ANO'].astype(str)
             fig_individual = px.bar(
                 historico_bairro, x='ANO', y='Casos',
@@ -1245,57 +1340,80 @@ if carregado_com_sucesso and not df_todos.empty:
                 template="plotly_white"
             )
             fig_individual.update_traces(textposition='outside', textfont_size=12, marker_line_width=0)
+            y_max_bairro = max(float(historico_bairro['Casos'].max()), 1.0)
             fig_individual.update_layout(
-                height=300, 
-                yaxis=dict(range=[0, historico_bairro['Casos'].max() * 1.2], showgrid=True, gridcolor='#f1f5f9'), 
+                height=260,
+                yaxis=dict(range=[0, y_max_bairro * 1.25], showgrid=True, gridcolor='#f1f5f9'),
                 xaxis=dict(showgrid=False),
-                margin=dict(t=20, b=0),
+                margin=dict(t=12, b=0),
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
-            aplicar_tema_plotly(fig_individual, height=300)
+            aplicar_tema_plotly(fig_individual, height=260)
             st.plotly_chart(fig_individual, use_container_width=True)
 
         with col_insights:
-            casos_bairro = df_aba2[df_aba2['NM_BAIRRO'] == escolha].shape[0]
-            risco_atual = row_score['Risco']
-            pct_graves = row_score['Graves (%)']
-            tendencia = row_score['Tendência']
-            anomalia = row_score['Anomalia (σ)']
-
-            if risco_atual == 'Crítico':
-                agentes_necessarios = min(12, max(8, int(np.sqrt(casos_bairro) / 1.5)))
-            elif risco_atual == 'Alto':
-                agentes_necessarios = min(8, max(5, int(np.sqrt(casos_bairro) / 2)))
-            elif risco_atual == 'Moderado':
-                agentes_necessarios = min(4, max(3, int(np.sqrt(casos_bairro) / 3)))
+            st.markdown("**Recomendações operacionais**")
+            if detalhe_geral:
+                st.markdown(f"""
+                <div class="dr-reco-card warning"><strong>📍 Selecione um bairro</strong><br>
+                A visão geral mostra o comportamento agregado de Recife. Para recomendações de UBS,
+                agentes e ações ambientais, escolha um bairro na lista ou clique diretamente no mapa.</div>
+                <div class="dr-reco-card warning"><strong>Prioridade atual</strong><br>
+                Comece por <strong>{top_risco['Bairro'].title()}</strong>, que apresenta o maior score de risco
+                no recorte selecionado.</div>
+                """, unsafe_allow_html=True)
             else:
-                agentes_necessarios = 2 
+                casos_bairro = df_aba2[df_aba2['NM_BAIRRO'] == escolha].shape[0]
+                risco_atual = row_score['Risco']
+                pct_graves = row_score['Graves (%)']
+                tendencia = row_score['Tendência']
+                anomalia = row_score['Anomalia (σ)']
 
-            if risco_atual in ['Crítico', 'Alto']:
-                st.error(f"**🚨 Risco de Colapso (Atenção Básica):**\nO volume atual de notificações em {escolha} exige acionamento do protocolo de contingência. A proporção de quadros clínicos severos (com alarme ou graves) está em **{pct_graves}%**. Recomenda-se reforço imediato de leitos de observação e insumos de hidratação venosa nas unidades da região.")
-                
-                st.error(f"**🔥 Força-Tarefa (Controle Vetorial):**\nA situação exige bloqueio de transmissão urgente. Sugestão: deslocar até **{agentes_necessarios} agentes** para realizar varredura intensiva e priorizar a aplicação de fumacê espacial (UBV) num raio de 300m dos focos confirmados.")
-                
-                anomalia_txt = f"(alerta de +{anomalia} desvios padrões)" if anomalia > 1.5 else ""
-                st.error(f"**⚠️ Alerta Ambiental e Infraestrutura:**\nA curva de contágio está significativamente descolada do padrão histórico esperado para o bairro {anomalia_txt}. Acionar a Emlurb para mapeamento emergencial, desobstrução de canais de drenagem e remoção de lixo irregular.")
+                if risco_atual == 'Crítico':
+                    agentes_necessarios = min(12, max(8, int(np.sqrt(casos_bairro) / 1.5)))
+                elif risco_atual == 'Alto':
+                    agentes_necessarios = min(8, max(5, int(np.sqrt(casos_bairro) / 2)))
+                elif risco_atual == 'Moderado':
+                    agentes_necessarios = min(4, max(3, int(np.sqrt(casos_bairro) / 3)))
+                else:
+                    agentes_necessarios = 2
 
-            elif risco_atual == 'Moderado':
-                dinamica = "O viés de crescimento" if tendencia > 0 else "A trajetória atual"
-                sinal_t = "+" if tendencia > 0 else ""
-                
-                st.warning(f"**🏥 Gargalo Primário (UBS):**\n{dinamica} de **{sinal_t}{tendencia:.1f} casos/ano** acende um alerta amarelo para a triagem em {escolha}. A gestão deve garantir estoques preventivos de Soro de Reidratação Oral (SRO) e monitorar o tempo de espera nos postos de saúde.")
-                
-                st.warning(f"**🚶‍♂️ Bloqueio Focal (Agentes de Endemias):**\nCenário requer reforço territorial de nível intermediário. Empregar **~{agentes_necessarios} agentes** para mutirões focados na eliminação de criadouros mecânicos (pneus, caixas d'água destampadas) e aplicação de larvicida biológico.")
-                
-                st.warning(f"**🌧️ Risco Ambiental Preventivo:**\nDirecionar equipes de zeladoria urbana para inspecionar pontos crônicos de alagamento e terrenos baldios mapeados em {escolha}, visando cortar o ciclo do vetor antes que o bairro entre em Risco Alto.")
+                if risco_atual in ['Crítico', 'Alto']:
+                    anomalia_txt = f"(alerta de +{anomalia} desvios padrões)" if anomalia > 1.5 else ""
+                    st.markdown(f"""
+                    <div class="dr-reco-card critical"><strong>🚨 Atenção básica</strong><br>
+                    Acionar contingência em {escolha}. Quadros com alarme ou graves representam <strong>{pct_graves}%</strong>;
+                    reforçar observação e hidratação venosa.</div>
+                    <div class="dr-reco-card critical"><strong>🔥 Controle vetorial</strong><br>
+                    Deslocar até <strong>{agentes_necessarios} agentes</strong> para varredura intensiva e fumacê espacial
+                    em raio de 300m dos focos confirmados.</div>
+                    <div class="dr-reco-card critical"><strong>⚠️ Infraestrutura urbana</strong><br>
+                    Curva acima do padrão histórico {anomalia_txt}. Acionar mapeamento emergencial, drenagem e remoção de lixo irregular.</div>
+                    """, unsafe_allow_html=True)
 
-            else:
-                st.success(f"**✅ Estabilidade Clínica (Rede de Saúde):**\nO fluxo epidemiológico em {escolha} encontra-se estabilizado. A taxa atual de gravidade (**{pct_graves}%**) sugere que a rede consegue absorver a demanda e manter os atendimentos de rotina sem sobrecarga.")
-                
-                st.success(f"**🧹 Cobertura de Rotina (Vigilância Ambiental):**\nO volume de casos é compatível com o controle endêmico padrão. Manter o ciclo de visitas domiciliares de rotina com **~{agentes_necessarios} agentes** designados para a microárea.")
-                
-                st.success(f"**🌱 Ambiente Controlado:**\nSem detecção de anomalias estatísticas no momento. A estratégia recomendada é a manutenção de campanhas contínuas em escolas e redes sociais orientando a população sobre o acúmulo intradomiciliar de água.")
+                elif risco_atual == 'Moderado':
+                    dinamica = "O viés de crescimento" if tendencia > 0 else "A trajetória atual"
+                    sinal_t = "+" if tendencia > 0 else ""
+                    st.markdown(f"""
+                    <div class="dr-reco-card warning"><strong>🏥 UBS</strong><br>
+                    {dinamica} de <strong>{sinal_t}{tendencia:.1f} casos/ano</strong> pede atenção à triagem em {escolha};
+                    garantir SRO e monitorar tempo de espera.</div>
+                    <div class="dr-reco-card warning"><strong>🚶 Agentes de endemias</strong><br>
+                    Empregar cerca de <strong>{agentes_necessarios} agentes</strong> em mutirões de eliminação de criadouros e larvicida biológico.</div>
+                    <div class="dr-reco-card warning"><strong>🌧️ Ambiente</strong><br>
+                    Inspecionar pontos de alagamento e terrenos baldios para evitar avanço para Risco Alto.</div>
+                    """, unsafe_allow_html=True)
+
+                else:
+                    st.markdown(f"""
+                    <div class="dr-reco-card success"><strong>✅ Rede de saúde</strong><br>
+                    Fluxo estabilizado em {escolha}; gravidade atual de <strong>{pct_graves}%</strong> indica demanda absorvível.</div>
+                    <div class="dr-reco-card success"><strong>🧹 Vigilância ambiental</strong><br>
+                    Manter visitas de rotina com cerca de <strong>{agentes_necessarios} agentes</strong> na microárea.</div>
+                    <div class="dr-reco-card success"><strong>🌱 Educação preventiva</strong><br>
+                    Reforçar campanhas contínuas sobre acúmulo intradomiciliar de água.</div>
+                    """, unsafe_allow_html=True)
 
     with aba_previsao:
         st.markdown("""
